@@ -99,8 +99,25 @@ Every resource the suite creates is named `gvm-mcp-e2e-*` and deleted again.
 Capability-dependent endpoints (credential stores, OCI/web application
 targets, agents) are recorded as `SKIP (capability)` when the connected gvmd
 lacks the feature; gateway-side defects are recorded as `GATEWAY-DEFECT`
-rows instead of failing the tool. The resulting matrix is kept in
-[e2e-test-map.md](e2e-test-map.md).
+rows instead of failing the tool. The matrix is a run artifact: set
+`GVM_E2E_MATRIX_OUT` to write it as Markdown (one row per exercised gateway
+operation, with the tool that drove it and the outcome) and attach it to
+the PR or CI run instead of committing it.
+
+Gateway-side behaviour the suite currently has to tolerate (reproducible
+with curl against rust-gvm-api `main` + gvmd 26.43.0, not fixable here):
+
+- `GET /scan-configs/{id}/preferences/{name}` answers 404 for every
+  preference the list on the same config returns; `PUT` on the name works.
+- `GET /assets?type=tls_certificate` is rejected by gvmd ("Failed to find
+  type") although the contract lists the value.
+- Feature-disabled gvmd commands (OCI image targets, agents) surface as
+  `502 backend_unavailable` rather than `501`.
+- Request-scoped `Basic` sessions end per request and take their export
+  jobs with them — the reason for the job-bound export sessions in
+  `src/gateway/jobs.rs`.
+- `DELETE /audits/{id}` is non-ultimate only, so an audit's target can only
+  be trashed afterwards.
 
 ## Releasing
 

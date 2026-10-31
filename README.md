@@ -190,8 +190,8 @@ python3 scripts/gateway_sync_check.py --spec ../rust-gvm-api/spec/rest-api --wri
 
 The test suite runs entirely against a mock gateway (wiremock) — no GVM
 installation needed. End-to-end tests against a live stack are gated behind
-`#[ignore]` and double as the endpoint coverage map
-([docs/e2e-test-map.md](docs/e2e-test-map.md)):
+`#[ignore]`; they exercise every gateway endpoint and can emit a per-endpoint
+coverage matrix (`GVM_E2E_MATRIX_OUT`):
 
 ```bash
 export GVM_E2E_GATEWAY_URL=http://127.0.0.1:18080
