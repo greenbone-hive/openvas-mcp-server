@@ -48,6 +48,10 @@ pub enum GatewayError {
         #[source]
         source: reqwest::Error,
     },
+
+    /// A downloaded artifact exceeds the inline size limit.
+    #[error("artifact exceeds the {limit} byte inline limit")]
+    ArtifactTooLarge { limit: usize, size: Option<u64> },
 }
 
 impl GatewayError {
@@ -57,11 +61,11 @@ impl GatewayError {
             Self::Api(problem) => Some(problem.status),
             Self::UnexpectedStatus { status, .. } => Some(*status),
             Self::Transport(err) => err.status().map(|s| s.as_u16()),
-            Self::Decode { .. } => None,
+            Self::Decode { .. } | Self::ArtifactTooLarge { .. } => None,
         }
     }
 
-    /// Whether the failing request should be retried once with a fresh session.
+    /// Whether the gateway rejected the identity used for the request.
     pub fn is_unauthorized(&self) -> bool {
         self.status() == Some(401)
     }
@@ -127,5 +131,13 @@ mod tests {
             body: "boom".into(),
         };
         assert!(!err.is_unauthorized());
+        assert!(
+            GatewayError::ArtifactTooLarge {
+                limit: 1,
+                size: None
+            }
+            .status()
+            .is_none()
+        );
     }
 }

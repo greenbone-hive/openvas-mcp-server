@@ -1,6 +1,6 @@
 //! Toolset grouping and gating.
 //!
-//! The full gateway surface is ~104 tools — far too many to expose to an LLM
+//! The full gateway surface is ~190 tools — far too many to expose to an LLM
 //! by default. Tools are grouped into toolsets selectable via `--toolsets`;
 //! the identity toolset is always opt-in, and `--read-only` additionally
 //! gates out every mutating tool.
@@ -9,7 +9,8 @@ use std::collections::BTreeSet;
 
 use anyhow::bail;
 
-/// One toolset ≈ one gateway resource family (roadmap §4).
+/// One toolset ≈ one gateway resource family (roadmap §4). The set mirrors
+/// the tag families of the rust-gvm-api OpenAPI contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Toolset {
     System,
@@ -31,10 +32,11 @@ pub enum Toolset {
     Notes,
     Overrides,
     Nvts,
+    SecInfo,
     Vulnerabilities,
     Feeds,
-    Tickets,
     Compliance,
+    Agents,
     Identity,
 }
 
@@ -59,10 +61,11 @@ impl Toolset {
         Toolset::Notes,
         Toolset::Overrides,
         Toolset::Nvts,
+        Toolset::SecInfo,
         Toolset::Vulnerabilities,
         Toolset::Feeds,
-        Toolset::Tickets,
         Toolset::Compliance,
+        Toolset::Agents,
         Toolset::Identity,
     ];
 
@@ -87,28 +90,33 @@ impl Toolset {
             Toolset::Notes => "notes",
             Toolset::Overrides => "overrides",
             Toolset::Nvts => "nvts",
+            Toolset::SecInfo => "secinfo",
             Toolset::Vulnerabilities => "vulnerabilities",
             Toolset::Feeds => "feeds",
-            Toolset::Tickets => "tickets",
             Toolset::Compliance => "compliance",
+            Toolset::Agents => "agents",
             Toolset::Identity => "identity",
         }
     }
 
     pub fn describe(self) -> &'static str {
         match self {
-            Toolset::System => "Connectivity, health and version information",
-            Toolset::Targets => "Scan targets (hosts, port list bindings)",
-            Toolset::Tasks => "Scan tasks and their lifecycle (start/stop/resume)",
-            Toolset::ScanConfigs => "Scan configurations",
+            Toolset::System => "Connectivity, health, version and timezone information",
+            Toolset::Targets => {
+                "Scan targets (hosts, port lists), OCI image and web application targets"
+            }
+            Toolset::Tasks => "Scan tasks and their lifecycle (start/stop/resume/clone)",
+            Toolset::ScanConfigs => {
+                "Scan configurations, NVT/family selection, preferences and generic configs"
+            }
             Toolset::Scanners => "Scanner instances",
             Toolset::Schedules => "Scan schedules",
-            Toolset::Credentials => "Authenticated-scan credentials",
+            Toolset::Credentials => "Authenticated-scan credentials and credential stores",
             Toolset::Alerts => "Alerts and notifications",
             Toolset::PortLists => "Port lists",
             Toolset::Results => "Individual scan results",
-            Toolset::Reports => "Scan reports, drill-down and exports",
-            Toolset::Assets => "Host assets and operating systems",
+            Toolset::Reports => "Scan reports, drill-down pages, imports and exports",
+            Toolset::Assets => "Host, operating-system and generic assets",
             Toolset::TlsCertificates => "TLS certificates discovered by scans",
             Toolset::ReportFormats => "Report formats",
             Toolset::Filters => "Saved filters",
@@ -116,10 +124,11 @@ impl Toolset {
             Toolset::Notes => "Notes on results",
             Toolset::Overrides => "Severity overrides",
             Toolset::Nvts => "NVTs and NVT families",
+            Toolset::SecInfo => "CVE, CPE, CERT-Bund and DFN-CERT catalogs",
             Toolset::Vulnerabilities => "Vulnerability listing",
             Toolset::Feeds => "Feed status",
-            Toolset::Tickets => "Remediation tickets",
             Toolset::Compliance => "Compliance audits and policies",
+            Toolset::Agents => "Sensor agents and agent groups",
             Toolset::Identity => "Users, groups, roles, permissions (opt-in)",
         }
     }
@@ -205,6 +214,8 @@ mod tests {
         let selection = ToolsetSelection::parse(&[]).unwrap();
         assert!(selection.is_enabled(Toolset::Targets));
         assert!(selection.is_enabled(Toolset::System));
+        assert!(selection.is_enabled(Toolset::Compliance));
+        assert!(selection.is_enabled(Toolset::Agents));
         assert!(!selection.is_enabled(Toolset::Identity));
     }
 
@@ -237,6 +248,15 @@ mod tests {
     fn unknown_toolset_is_rejected() {
         let err = ToolsetSelection::parse(&["bogus".into()]).unwrap_err();
         assert!(err.to_string().contains("bogus"));
+    }
+
+    #[test]
+    fn removed_ticket_toolset_is_unknown() {
+        // The gateway removed its ticket routes (rust-gvm-api #500/#504);
+        // naming the old toolset must fail loudly instead of silently
+        // exposing tools that 404.
+        let err = ToolsetSelection::parse(&["tickets".into()]).unwrap_err();
+        assert!(err.to_string().contains("tickets"));
     }
 
     #[test]

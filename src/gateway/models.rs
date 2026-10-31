@@ -1,6 +1,10 @@
 //! Serde DTOs mirroring the gateway's `openapi.yaml` (source of truth:
 //! `rust-gvm-api` `spec/rest-api/`). Keep field names in lockstep with the
 //! spec; the contract tests deserialize the documented examples.
+//!
+//! Only the shapes this server inspects are typed; everything else is
+//! passed through as `serde_json::Value` so new gateway fields never break
+//! a tool.
 
 use serde::{Deserialize, Serialize};
 
@@ -24,10 +28,22 @@ pub struct ReadinessStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VersionInfo {
-    /// REST API contract version, not the proxy binary version.
+    /// REST API contract version, aligned with the gateway package version.
     pub api_version: String,
     /// GMP protocol version reported by the proxied gvmd.
     pub gmp_version: String,
+}
+
+/// `POST /api/v1/session` — 201 response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCreated {
+    /// Opaque bearer token for the new session.
+    pub session_token: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_in: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gmp_version: Option<String>,
 }
 
 /// Minimal reference to a related resource.
@@ -38,7 +54,7 @@ pub struct ResourceRef {
     pub name: Option<String>,
 }
 
-/// `201 Created` envelope returned by all create endpoints.
+/// `201 Created` envelope returned by all create and clone endpoints.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceCreated {
     pub id: String,
@@ -84,7 +100,8 @@ pub struct TargetList {
     pub pagination: Pagination,
 }
 
-/// A scan task as served by `GET /api/v1/tasks[/{id}]`.
+/// A scan task (or audit — same shape) as served by
+/// `GET /api/v1/tasks[/{id}]` and `GET /api/v1/audits[/{id}]`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Task {
@@ -100,6 +117,12 @@ pub struct Task {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target: Option<ResourceRef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_group: Option<ResourceRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oci_image_target: Option<ResourceRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub web_application_target: Option<ResourceRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scan_config: Option<ResourceRef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scanner: Option<ResourceRef>,
@@ -112,6 +135,8 @@ pub struct Task {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hosts_ordering: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observers: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub schedule_periods: Option<i32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_report: Option<ResourceRef>,
@@ -119,6 +144,10 @@ pub struct Task {
     pub current_report: Option<ResourceRef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub report_count: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trend: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub in_use: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -132,27 +161,7 @@ pub struct TaskList {
     pub pagination: Pagination,
 }
 
-/// `POST /api/v1/tasks` request body.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CreateTask {
-    pub name: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub comment: Option<String>,
-    pub target_id: String,
-    pub scan_config_id: String,
-    pub scanner_id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub schedule_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub alert_ids: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub alterable: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub schedule_periods: Option<i32>,
-}
-
-/// `POST /api/v1/tasks/{id}/start|resume` — 200 response.
+/// `POST /api/v1/tasks|audits/{id}/start|resume` — 200 response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskAction {
@@ -177,10 +186,18 @@ mod tests {
 
     #[test]
     fn version_info_matches_spec_example() {
-        let json = r#"{"apiVersion": "0.1.0", "gmpVersion": "22.7"}"#;
+        let json = r#"{"apiVersion": "0.5.0", "gmpVersion": "22.8"}"#;
         let parsed: VersionInfo = serde_json::from_str(json).unwrap();
-        assert_eq!(parsed.api_version, "0.1.0");
-        assert_eq!(parsed.gmp_version, "22.7");
+        assert_eq!(parsed.api_version, "0.5.0");
+        assert_eq!(parsed.gmp_version, "22.8");
+    }
+
+    #[test]
+    fn readiness_matches_spec_shape() {
+        let parsed: ReadinessStatus =
+            serde_json::from_str(r#"{"status": "notReady", "reason": "gvmd down"}"#).unwrap();
+        assert_eq!(parsed.status, "notReady");
+        assert_eq!(parsed.reason.as_deref(), Some("gvmd down"));
     }
 
     #[test]
@@ -201,7 +218,7 @@ mod tests {
     }
 
     #[test]
-    fn task_matches_spec_shape() {
+    fn task_matches_spec_shape_including_variants() {
         let json = r#"{
             "id": "t-1",
             "name": "weekly scan",
@@ -210,32 +227,21 @@ mod tests {
             "target": {"id": "tg-1", "name": "webservers"},
             "scanConfig": {"id": "sc-1", "name": "Full and fast"},
             "lastReport": {"id": "r-1"},
-            "reportCount": 3
+            "reportCount": 3,
+            "usageType": "scan",
+            "trend": "same",
+            "observers": {"users": ["alice"], "groups": [], "roles": []},
+            "webApplicationTarget": {"id": "wat-1", "name": "shop"}
         }"#;
         let parsed: Task = serde_json::from_str(json).unwrap();
         assert_eq!(parsed.status, "Running");
         assert_eq!(parsed.progress, Some(42));
         assert_eq!(parsed.report_count, Some(3));
-    }
-
-    #[test]
-    fn create_task_serializes_camel_case_and_omits_none() {
-        let body = CreateTask {
-            name: "scan".into(),
-            comment: None,
-            target_id: "tg-1".into(),
-            scan_config_id: "sc-1".into(),
-            scanner_id: "s-1".into(),
-            schedule_id: None,
-            alert_ids: None,
-            alterable: None,
-            schedule_periods: None,
-        };
-        let json = serde_json::to_value(&body).unwrap();
-        assert_eq!(json["targetId"], "tg-1");
-        assert_eq!(json["scanConfigId"], "sc-1");
-        assert!(json.get("comment").is_none());
-        assert!(json.get("scheduleId").is_none());
+        assert_eq!(parsed.usage_type.as_deref(), Some("scan"));
+        assert_eq!(
+            parsed.web_application_target.unwrap().name.as_deref(),
+            Some("shop")
+        );
     }
 
     #[test]

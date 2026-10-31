@@ -26,7 +26,12 @@ fn describe(stage: &str, err: &GatewayError) -> String {
                 401 => "Authentication failed",
                 403 => "Permission denied",
                 404 => "Not found",
+                409 => "Conflict",
+                413 => "Payload too large",
+                415 => "Unsupported media type",
+                429 => "Rate limited",
                 400..=499 => "Request rejected",
+                501 => "Not supported by the connected gvmd",
                 502 | 504 => "Gateway cannot reach gvmd",
                 _ => "Gateway error",
             };
@@ -39,6 +44,16 @@ fn describe(stage: &str, err: &GatewayError) -> String {
             "Gateway response from {endpoint} could not be decoded while {stage}: {source}. \
              The gateway and this server may be running incompatible versions."
         ),
+        GatewayError::ArtifactTooLarge { limit, size } => {
+            let observed = size
+                .map(|s| format!("{s} bytes"))
+                .unwrap_or_else(|| "more than the limit".to_owned());
+            format!(
+                "Artifact is {observed}, larger than the {limit} byte inline limit while {stage}. \
+                 Export with a narrower filter, or use the JSON format and page through \
+                 the results instead."
+            )
+        }
     }
 }
 
@@ -72,6 +87,9 @@ mod tests {
     fn status_classes_are_distinguishable() {
         assert!(describe("x", &problem(401, "unauthorized")).contains("Authentication failed"));
         assert!(describe("x", &problem(403, "forbidden")).contains("Permission denied"));
+        assert!(describe("x", &problem(409, "conflict")).contains("Conflict"));
+        assert!(describe("x", &problem(429, "rate_limited")).contains("Rate limited"));
+        assert!(describe("x", &problem(501, "not_implemented")).contains("Not supported"));
         assert!(describe("x", &problem(502, "bad_gateway")).contains("cannot reach gvmd"));
     }
 
@@ -79,5 +97,18 @@ mod tests {
     fn tool_error_result_is_flagged_as_error() {
         let result = gateway_tool_error("testing", &problem(500, "internal"));
         assert_eq!(result.is_error, Some(true));
+    }
+
+    #[test]
+    fn too_large_artifact_explains_the_limit() {
+        let text = describe(
+            "downloading the job result",
+            &GatewayError::ArtifactTooLarge {
+                limit: 3_145_728,
+                size: Some(9_000_000),
+            },
+        );
+        assert!(text.contains("9000000 bytes"));
+        assert!(text.contains("3145728"));
     }
 }

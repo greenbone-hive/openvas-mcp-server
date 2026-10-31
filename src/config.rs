@@ -60,6 +60,12 @@ pub struct Cli {
     )]
     pub allowed_hosts: Vec<String>,
 
+    /// Streamable-http hardening: reject tool calls from HTTP callers that
+    /// send no Authorization header instead of serving them with the
+    /// configured fallback identity. Has no effect on stdio.
+    #[arg(long, env = "MCP_REQUIRE_CALLER_AUTH", default_value_t = false)]
+    pub require_caller_auth: bool,
+
     /// Comma-separated toolsets to expose ("default", "all", or names from
     /// --list-toolsets). Identity is always opt-in.
     #[arg(long, env = "GVM_TOOLSETS", value_delimiter = ',')]
@@ -91,6 +97,7 @@ pub struct Config {
     pub transport: Transport,
     pub bind_addr: std::net::SocketAddr,
     pub allowed_hosts: Vec<String>,
+    pub require_caller_auth: bool,
     pub toolsets: ToolsetSelection,
     pub read_only: bool,
     pub timeout: Duration,
@@ -106,6 +113,14 @@ impl Config {
         }
         if cli.gateway_url.host_str().is_none() {
             bail!("gateway URL has no host: '{}'", cli.gateway_url);
+        }
+        // Credentials embedded in the URL would end up in logs and error
+        // messages; the dedicated flags keep them in SecretString.
+        if !cli.gateway_url.username().is_empty() || cli.gateway_url.password().is_some() {
+            bail!(
+                "gateway URL must not embed credentials; use --username/--password \
+                 (GVM_USERNAME/GVM_PASSWORD) instead"
+            );
         }
 
         // Credentials are optional: gvm-mcp forwards the caller's identity to
@@ -150,10 +165,16 @@ impl Config {
             transport: cli.transport,
             bind_addr: cli.bind_addr,
             allowed_hosts: cli.allowed_hosts,
+            require_caller_auth: cli.require_caller_auth,
             toolsets,
             read_only: cli.read_only,
             timeout: Duration::from_secs(cli.timeout_secs),
         })
+    }
+
+    /// Whether a fallback gvmd identity is configured.
+    pub fn has_fallback_credentials(&self) -> bool {
+        self.username.is_some() && self.password.is_some()
     }
 }
 
@@ -180,6 +201,8 @@ mod tests {
         assert_eq!(config.gateway_url.as_str(), "http://gateway.example:8080/");
         assert_eq!(config.timeout, Duration::from_secs(30));
         assert!(!config.read_only);
+        assert!(!config.require_caller_auth);
+        assert!(config.has_fallback_credentials());
     }
 
     #[test]
@@ -190,6 +213,7 @@ mod tests {
         let config = Config::from_cli(cli).unwrap();
         assert!(config.username.is_none());
         assert!(config.password.is_none());
+        assert!(!config.has_fallback_credentials());
     }
 
     #[test]
@@ -214,6 +238,29 @@ mod tests {
         cli.gateway_url = Url::parse("unix:/run/gvmd.sock").unwrap();
         let err = Config::from_cli(cli).unwrap_err();
         assert!(err.to_string().contains("http"));
+    }
+
+    #[test]
+    fn rejects_credentials_embedded_in_gateway_url() {
+        let mut cli = base_cli();
+        cli.gateway_url = Url::parse("http://admin:secret@gateway.example:8080").unwrap();
+        let err = Config::from_cli(cli).unwrap_err();
+        assert!(err.to_string().contains("must not embed credentials"));
+        // The rejection message must not echo the secret.
+        assert!(!err.to_string().contains("secret@"));
+    }
+
+    #[test]
+    fn require_caller_auth_flag_is_parsed() {
+        let cli = Cli::parse_from([
+            "gvm-mcp",
+            "--transport",
+            "streamable-http",
+            "--require-caller-auth",
+        ]);
+        let config = Config::from_cli(cli).unwrap();
+        assert!(config.require_caller_auth);
+        assert_eq!(config.transport, Transport::StreamableHttp);
     }
 
     #[test]

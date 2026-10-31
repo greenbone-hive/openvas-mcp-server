@@ -6,7 +6,7 @@ mod support;
 
 use gvm_mcp::mcp::GvmMcpServer;
 use gvm_mcp::mcp::tools::alerts::CreateAlertParams;
-use gvm_mcp::mcp::tools::common::DeleteParams;
+use gvm_mcp::mcp::tools::common::{DeleteParams, GetByIdParams};
 use gvm_mcp::mcp::tools::credentials::CreateCredentialParams;
 use gvm_mcp::mcp::tools::notes::CreateNoteParams;
 use gvm_mcp::mcp::tools::overrides::CreateOverrideParams;
@@ -155,7 +155,10 @@ async fn update_task_puts_camel_case_bindings() {
             scanner_id: None,
             schedule_id: Some("sch-1".into()),
             alert_ids: None,
+            alterable: None,
+            observers: None,
             schedule_periods: None,
+            preferences: None,
         }))
         .await
         .unwrap();
@@ -191,6 +194,9 @@ async fn create_credential_maps_type_key() {
             auth_algorithm: None,
             privacy_algorithm: None,
             privacy_password: None,
+            credential_store_id: None,
+            vault_id: None,
+            host_identifier: None,
         }))
         .await
         .unwrap();
@@ -268,6 +274,7 @@ async fn create_note_and_override_send_nvt_oid() {
             task_id: None,
             result_id: None,
             active: None,
+            orphan: None,
         }))
         .await
         .unwrap();
@@ -284,6 +291,7 @@ async fn create_note_and_override_send_nvt_oid() {
             task_id: None,
             result_id: None,
             active: None,
+            orphan: None,
         }))
         .await
         .unwrap();
@@ -291,20 +299,20 @@ async fn create_note_and_override_send_nvt_oid() {
 }
 
 #[tokio::test]
-async fn delete_report_hits_reports_endpoint() {
+async fn delete_report_hits_reports_endpoint_without_ultimate() {
     let (server, mcp) = server_with_login().await;
+    // The gateway rejects `ultimate` on report deletion with 400, so the
+    // tool must never send a query string here.
     Mock::given(method("DELETE"))
         .and(path("/api/v1/reports/rep-1"))
+        .and(wiremock::matchers::query_param_is_missing("ultimate"))
         .respond_with(ResponseTemplate::new(204))
         .expect(1)
         .mount(&server)
         .await;
 
     let result = mcp
-        .delete_report(Parameters(DeleteParams {
-            id: "rep-1".into(),
-            ultimate: None,
-        }))
+        .delete_report(Parameters(GetByIdParams { id: "rep-1".into() }))
         .await
         .unwrap();
     assert_eq!(json_of(&result)["deleted"], true);

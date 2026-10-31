@@ -18,6 +18,13 @@ async fn mount_healthy_gateway(server: &MockServer) {
         .mount(server)
         .await;
     Mock::given(method("GET"))
+        .and(path("/ready"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "status": "ready"
+        })))
+        .mount(server)
+        .await;
+    Mock::given(method("GET"))
         .and(path("/api/v1/version"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "apiVersion": "0.1.0",
@@ -61,6 +68,7 @@ async fn reports_full_stack_health_on_success() {
     let text = text_of(&result);
     let report: serde_json::Value = serde_json::from_str(&text).unwrap();
     assert_eq!(report["gatewayStatus"], "ok");
+    assert_eq!(report["gatewayReadiness"], "ready");
     assert_eq!(report["gmpVersion"], "22.7");
     assert_eq!(report["authenticated"], true);
 }
@@ -84,6 +92,13 @@ async fn bad_credentials_are_a_legible_tool_error() {
         .and(path("/health"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "status": "ok"
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/ready"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "status": "ready"
         })))
         .mount(&server)
         .await;

@@ -124,6 +124,7 @@ All flags and their environment variables are documented in the
 | Transport | `MCP_TRANSPORT` | `stdio` (default) or `streamable-http` |
 | Bind address | `MCP_BIND_ADDR` | HTTP only, default `127.0.0.1:8000` |
 | Allowed hosts | `MCP_ALLOWED_HOSTS` | HTTP DNS-rebinding guard; `*` to disable |
+| Require caller auth | `MCP_REQUIRE_CALLER_AUTH` | HTTP callers must send `Authorization`; the fallback identity then serves stdio only |
 
 ## Authentication
 
@@ -141,9 +142,23 @@ caller's gvmd identity to the gateway, and gvmd is the sole authority. The
 
 If neither is available the request goes out unauthenticated and the gateway
 answers `401`. Credentials are optional — omit `GVM_USERNAME` / `GVM_PASSWORD`
-to require every HTTP caller to authenticate as themselves. `MCP_ALLOWED_HOSTS`
-is a DNS-rebinding guard, not authentication; terminate TLS at a reverse proxy
-for public HTTP deployments.
+to require every HTTP caller to authenticate as themselves, or keep them for
+stdio and set `MCP_REQUIRE_CALLER_AUTH=true` so HTTP callers can never borrow
+the fallback identity. `MCP_ALLOWED_HOSTS` is a DNS-rebinding guard, not
+authentication; terminate TLS at a reverse proxy for public HTTP deployments.
+
+The Docker image binds `0.0.0.0:8000` and disables the Host check for container
+networks; when you pass `GVM_USERNAME`/`GVM_PASSWORD` to it, also pass
+`MCP_REQUIRE_CALLER_AUTH=true` or keep the port on a private network — the
+server logs a warning at startup otherwise.
+
+One exception to "no session": asynchronous report exports. The gateway binds
+an export job to the session that created it and cancels the job when that
+session ends, so for `openvas_export_report` gvm-mcp opens one gateway session
+with the caller's credentials, keeps it for the job's polling and download,
+and deletes it as soon as the artifact is downloaded, the job is cancelled or
+it reaches a terminal state. Callers that forward their own gateway bearer
+token are used as-is.
 
 ## Secrets
 

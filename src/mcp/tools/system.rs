@@ -1,4 +1,4 @@
-//! System toolset: connectivity and version tools.
+//! System toolset: connectivity, version and timezone tools.
 
 use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{ErrorData as McpError, tool, tool_router};
@@ -8,7 +8,7 @@ use crate::gateway::models::VersionInfo;
 use crate::mcp::error::gateway_tool_error;
 use crate::mcp::server::GvmMcpServer;
 
-use super::common::json_result;
+use super::common::{get_passthrough, json_result};
 
 /// Structured payload returned by `openvas_test_connection`.
 #[derive(Debug, Serialize)]
@@ -16,6 +16,10 @@ use super::common::json_result;
 struct TestConnectionReport {
     gateway_url: String,
     gateway_status: String,
+    /// Readiness as reported by `GET /ready` (`ready` / `notReady`).
+    gateway_readiness: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    gateway_readiness_reason: Option<String>,
     api_version: String,
     gmp_version: String,
     /// Whether the identity used for this call is accepted by the gateway.
@@ -26,9 +30,10 @@ struct TestConnectionReport {
 
 #[tool_router(router = system_router, vis = "pub(crate)")]
 impl GvmMcpServer {
-    /// Verify connectivity to the GVM stack: checks gateway liveness, queries
-    /// the gvmd version and makes one authenticated call to confirm the
-    /// forwarded identity is accepted. Use this first if other tools fail.
+    /// Verify connectivity to the GVM stack: checks gateway liveness and
+    /// readiness, queries the gvmd version and makes one authenticated call
+    /// to confirm the forwarded identity is accepted. Use this first if
+    /// other tools fail.
     #[tool(
         name = "openvas_test_connection",
         annotations(title = "Test GVM connection", read_only_hint = true)
@@ -39,6 +44,16 @@ impl GvmMcpServer {
             Err(err) => {
                 return Ok(gateway_tool_error(
                     "checking gateway liveness (GET /health)",
+                    &err,
+                ));
+            }
+        };
+
+        let readiness = match self.gateway().ready().await {
+            Ok(readiness) => readiness,
+            Err(err) => {
+                return Ok(gateway_tool_error(
+                    "checking gateway readiness (GET /ready)",
                     &err,
                 ));
             }
@@ -71,6 +86,8 @@ impl GvmMcpServer {
         let report = TestConnectionReport {
             gateway_url: self.config().gateway_url.to_string(),
             gateway_status: health.status,
+            gateway_readiness: readiness.status,
+            gateway_readiness_reason: readiness.reason,
             api_version: version.api_version,
             gmp_version: version.gmp_version,
             authenticated: true,
@@ -97,5 +114,15 @@ impl GvmMcpServer {
                 &err,
             )),
         }
+    }
+
+    /// List the IANA timezones known to the connected gvmd (use these names
+    /// for schedules). Backends without timezone discovery answer 501.
+    #[tool(
+        name = "openvas_list_timezones",
+        annotations(title = "List timezones", read_only_hint = true)
+    )]
+    pub async fn list_timezones(&self) -> Result<CallToolResult, McpError> {
+        get_passthrough(self.gateway(), &["timezones"], "listing timezones").await
     }
 }

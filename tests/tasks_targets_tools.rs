@@ -179,12 +179,19 @@ async fn create_task_sends_camel_case_body() {
         .create_task(Parameters(CreateTaskParams {
             name: "scan web".into(),
             comment: None,
-            target_id: "tg-1".into(),
-            scan_config_id: "sc-1".into(),
-            scanner_id: "s-1".into(),
+            task_type: None,
+            target_id: Some("tg-1".into()),
+            agent_group_id: None,
+            oci_image_target_id: None,
+            web_application_target_id: None,
+            scan_config_id: Some("sc-1".into()),
+            scanner_id: Some("s-1".into()),
             schedule_id: None,
             alert_ids: None,
             alterable: None,
+            observers: None,
+            schedule_periods: None,
+            preferences: None,
         }))
         .await
         .unwrap();

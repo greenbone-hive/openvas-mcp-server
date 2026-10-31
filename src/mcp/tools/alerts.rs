@@ -59,8 +59,10 @@ impl GvmMcpServer {
         .await
     }
 
-    /// Create an alert binding an event, condition and method (e.g. mail on
-    /// "Task run status changed"). Not idempotent.
+    /// Create an alert binding an event, condition and method (e.g. email
+    /// on task_run_status_changed with event_data {"status": "Done"}). The
+    /// event/condition/method values are the gateway's snake_case
+    /// identifiers. Not idempotent.
     #[tool(
         name = "openvas_create_alert",
         annotations(
@@ -141,11 +143,15 @@ impl GvmMcpServer {
 pub struct CreateAlertParams {
     /// Alert name
     pub name: String,
-    /// Trigger event, e.g. "Task run status changed"
+    /// Trigger event: task_run_status_changed, updated_secinfo or
+    /// new_secinfo
     pub event: String,
-    /// Trigger condition, e.g. "Always" or "Severity at least"
+    /// Trigger condition: always, filter_count_at_least,
+    /// filter_count_changed, severity_at_least or severity_changed
     pub condition: String,
-    /// Delivery method, e.g. "Email" or "HTTP Get"
+    /// Delivery method: email, http_get, scp, send_email, smb, snmp,
+    /// sourcefire_connector, start_task, syslog, tippingpoint, verinice_ce,
+    /// verinice_net or alemba
     pub method: String,
     /// Optional comment
     pub comment: Option<String>,
@@ -166,8 +172,11 @@ pub struct UpdateAlertParams {
     pub id: String,
     pub name: Option<String>,
     pub comment: Option<String>,
+    /// Same values as openvas_create_alert
     pub event: Option<String>,
+    /// Same values as openvas_create_alert
     pub condition: Option<String>,
+    /// Same values as openvas_create_alert
     pub method: Option<String>,
     pub event_data: Option<BTreeMap<String, String>>,
     pub condition_data: Option<BTreeMap<String, String>>,

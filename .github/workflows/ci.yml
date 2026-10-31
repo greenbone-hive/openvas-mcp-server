@@ -78,3 +78,23 @@ jobs:
 
       - name: Smoke-test image
         run: docker run --rm gvm-mcp:ci --list-toolsets
+
+  gateway-sync:
+    name: Gateway contract sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+
+      - name: Check out rust-gvm-api (spec source of truth)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          repository: greenbone-hive/rust-gvm-api
+          ref: main
+          path: rust-gvm-api
+          sparse-checkout: spec/rest-api
+
+      - name: Install PyYAML
+        run: python3 -m pip install --user pyyaml
+
+      - name: Verify every gateway operation maps to a tool (and vice versa)
+        run: python3 scripts/gateway_sync_check.py --spec rust-gvm-api/spec/rest-api
