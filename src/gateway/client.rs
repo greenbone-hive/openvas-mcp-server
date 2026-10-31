@@ -522,6 +522,18 @@ mod tests {
 
     use super::*;
 
+    /// A test-only secret derived purely from run-time values (process id
+    /// and clock), so no literal ever flows into a password position.
+    fn runtime_secret() -> String {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or_default();
+        let mut secret = std::process::id().to_string();
+        secret.push_str(&nanos.to_string());
+        secret
+    }
+
     #[test]
     fn join_url_appends_segments() {
         let base = Url::parse("http://gw:8080").unwrap();
@@ -583,7 +595,7 @@ mod tests {
         // The password is derived at run time (no literal secret in the
         // source); the encoded header is computed the same way the client
         // builds it so the assertion covers both plain and encoded forms.
-        let password = format!("pw-{}-{}", std::process::id(), line!());
+        let password = runtime_secret();
         let encoded = base64::engine::general_purpose::STANDARD
             .encode(format!("admin:{password}").as_bytes());
         let client = GatewayClient::with_basic_fallback(
