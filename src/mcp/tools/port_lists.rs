@@ -74,7 +74,7 @@ impl GvmMcpServer {
         create_resource(self.gateway(), "port-lists", body, "creating the port list").await
     }
 
-    /// Update a port list's comment or ranges. Idempotent (PUT).
+    /// Update a port list's name, comment or ranges. Idempotent (PUT).
     #[tool(
         name = "openvas_update_port_list",
         annotations(
@@ -88,6 +88,7 @@ impl GvmMcpServer {
         Parameters(params): Parameters<UpdatePortListParams>,
     ) -> Result<CallToolResult, McpError> {
         let body = Body::new()
+            .set_opt("name", params.name)
             .set_opt("comment", params.comment)
             .set_opt("portRange", params.port_range);
         update_resource(
@@ -139,6 +140,7 @@ pub struct CreatePortListParams {
 pub struct UpdatePortListParams {
     /// UUID of the port list to update
     pub id: String,
+    pub name: Option<String>,
     pub comment: Option<String>,
     /// Replacement port range expression, e.g. "T:1-1000,U:53"
     pub port_range: Option<String>,

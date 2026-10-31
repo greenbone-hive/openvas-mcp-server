@@ -29,8 +29,8 @@ them locally before opening a PR.
 
 The server is a thin, typed front end over the gateway's REST API — it holds
 **no business logic**. A tool is: validate arguments → build a gateway request
-→ map the response or error. Session handling (lazy login, single-flight
-renewal) and pagination are the only cross-cutting pieces. List tools return
+→ map the response or error. Per-request identity forwarding and
+pagination are the only cross-cutting pieces. List tools return
 summarized rows to protect the model's token budget; `get` tools return the
 gateway's JSON unchanged. See [docs/development.md](docs/development.md)
 for the module layout.
@@ -50,6 +50,9 @@ for the module layout.
    the summarized output, and update the inventory count in `tests/gating.rs`.
 5. If it starts a new toolset, wire the router in `server.rs` and extend
    `toolset.rs`.
+6. Run the drift check against the gateway spec and commit the regenerated
+   matrix: `python3 scripts/gateway_sync_check.py --spec ../rust-gvm-api/spec/rest-api --write-doc`.
+   CI runs the same check against the gateway's `main`.
 
 ## Commit and PR conventions
 

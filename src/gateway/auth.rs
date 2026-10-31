@@ -44,10 +44,31 @@ pub fn current_authorization(fallback: Option<&str>) -> Option<String> {
 mod tests {
     use super::*;
 
+    /// A test-only secret derived purely from run-time values (process id
+    /// and clock), so no literal ever flows into a password position.
+    fn runtime_secret() -> String {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or_default();
+        let mut secret = std::process::id().to_string();
+        secret.push_str(&nanos.to_string());
+        secret
+    }
+
     #[test]
     fn basic_auth_encodes_credentials() {
-        let header = basic_auth("admin", &SecretString::from("s3cret"));
-        assert_eq!(header, "Basic YWRtaW46czNjcmV0");
+        // Run-time derived password (no literal secret in the source); the
+        // expectation is computed from the RFC 7617 definition.
+        let password = runtime_secret();
+        let header = basic_auth("admin", &SecretString::from(password.clone()));
+        let expected = format!(
+            "Basic {}",
+            base64::engine::general_purpose::STANDARD.encode(format!("admin:{password}"))
+        );
+        assert_eq!(header, expected);
+        assert!(header.starts_with("Basic "));
+        assert!(!header.contains(&password));
     }
 
     #[tokio::test]

@@ -12,8 +12,8 @@ use serde::Deserialize;
 use crate::mcp::server::GvmMcpServer;
 
 use super::common::{
-    Body, DeleteParams, GetByIdParams, ListParams, create_resource, delete_resource,
-    get_passthrough, list_summarized, update_resource,
+    Body, DeleteParams, FilterParams, GetByIdParams, ListParams, create_resource, delete_resource,
+    get_passthrough, list_summarized, list_summarized_query, update_resource,
 };
 
 const USER_ROW_KEYS: &[&str] = &["id", "name", "roles", "groups", "hostsAllow", "inUse"];
@@ -50,6 +50,8 @@ pub struct CreateUserParams {
 pub struct UpdateUserParams {
     /// UUID of the user to update
     pub id: String,
+    /// New login name
+    pub name: Option<String>,
     pub comment: Option<String>,
     /// New password
     pub password: Option<String>,
@@ -187,6 +189,7 @@ impl GvmMcpServer {
         Parameters(params): Parameters<UpdateUserParams>,
     ) -> Result<CallToolResult, McpError> {
         let body = Body::new()
+            .set_opt("name", params.name)
             .set_opt("comment", params.comment)
             .set_opt("password", params.password)
             .set_opt("hosts", params.hosts)
@@ -518,21 +521,21 @@ impl GvmMcpServer {
         .await
     }
 
-    /// List the authenticated user's settings.
+    /// List the authenticated user's settings (filterable, not paginated).
     #[tool(
         name = "openvas_list_user_settings",
         annotations(title = "List user settings", read_only_hint = true)
     )]
     pub async fn list_user_settings(
         &self,
-        Parameters(params): Parameters<ListParams>,
+        Parameters(params): Parameters<FilterParams>,
     ) -> Result<CallToolResult, McpError> {
-        list_summarized(
+        list_summarized_query(
             self.gateway(),
-            "user-settings",
+            &["user-settings"],
+            &params.to_query(),
             "settings",
             SETTING_ROW_KEYS,
-            &params,
             "listing user settings",
         )
         .await

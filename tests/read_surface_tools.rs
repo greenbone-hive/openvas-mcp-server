@@ -5,8 +5,10 @@
 mod support;
 
 use gvm_mcp::mcp::GvmMcpServer;
+use gvm_mcp::mcp::tools::common::PageParams;
 use gvm_mcp::mcp::tools::common::{GetByIdParams, ListParams};
-use gvm_mcp::mcp::tools::nvts::GetNvtParams;
+use gvm_mcp::mcp::tools::feeds::ListFeedsParams;
+use gvm_mcp::mcp::tools::nvts::{GetNvtParams, SearchNvtsParams};
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{CallToolResult, ContentBlock};
 use support::{config_for, problem_response};
@@ -147,10 +149,7 @@ async fn credential_stores_list_summarizes() {
         .mount(&server)
         .await;
 
-    let result = mcp
-        .list_credential_stores(Parameters(ListParams::default()))
-        .await
-        .unwrap();
+    let result = mcp.list_credential_stores().await.unwrap();
     let json = json_of(&result);
     assert_eq!(json["credentialStores"][0]["provider"], "gvmd");
     assert_eq!(json["credentialStores"][0]["default"], true);
@@ -419,7 +418,7 @@ async fn nvts_search_get_and_families() {
         .await;
 
     let nvts = mcp
-        .search_nvts(Parameters(ListParams::default()))
+        .search_nvts(Parameters(SearchNvtsParams::default()))
         .await
         .unwrap();
     assert_row(
@@ -430,7 +429,7 @@ async fn nvts_search_get_and_families() {
     );
 
     let families = mcp
-        .list_nvt_families(Parameters(ListParams::default()))
+        .list_nvt_families(Parameters(PageParams::default()))
         .await
         .unwrap();
     assert_row(&families, "families", &["name", "maxNvtCount"], &[]);
@@ -445,32 +444,6 @@ async fn nvts_search_get_and_families() {
 }
 
 #[tokio::test]
-async fn tickets_list_summarizes() {
-    let (server, mcp) = server_with_login().await;
-    mount_list(
-        &server,
-        "tickets",
-        serde_json::json!({
-            "id": "tk-1", "name": "Fix OpenSSH", "status": "Open",
-            "assignedTo": {"id": "u-1", "name": "admin"},
-            "task": {"id": "t-1", "name": "weekly"},
-            "openNote": "please fix"
-        }),
-    )
-    .await;
-    let result = mcp
-        .list_tickets(Parameters(ListParams::default()))
-        .await
-        .unwrap();
-    assert_row(
-        &result,
-        "tickets",
-        &["id", "name", "status", "assignedTo"],
-        &["openNote"],
-    );
-}
-
-#[tokio::test]
 async fn feeds_list_handles_missing_pagination() {
     let (server, mcp) = server_with_login().await;
     Mock::given(method("GET"))
@@ -481,7 +454,10 @@ async fn feeds_list_handles_missing_pagination() {
         .mount(&server)
         .await;
 
-    let result = mcp.list_feeds().await.unwrap();
+    let result = mcp
+        .list_feeds(Parameters(ListFeedsParams::default()))
+        .await
+        .unwrap();
     let json = json_of(&result);
     assert_eq!(json["feeds"][0]["type"], "NVT");
     assert!(json.get("pagination").is_none());

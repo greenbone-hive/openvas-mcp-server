@@ -3,7 +3,7 @@
 mod support;
 
 use gvm_mcp::mcp::GvmMcpServer;
-use gvm_mcp::mcp::tools::common::{GetByIdParams, ListParams};
+use gvm_mcp::mcp::tools::common::{FilterParams, GetByIdParams, ListParams};
 use gvm_mcp::mcp::tools::identity::{CreateUserParams, UpdateUserSettingParams};
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{CallToolResult, ContentBlock};
@@ -114,7 +114,7 @@ async fn user_settings_list_and_update() {
         .await;
 
     let list = mcp
-        .list_user_settings(Parameters(ListParams::default()))
+        .list_user_settings(Parameters(FilterParams::default()))
         .await
         .unwrap();
     let json = json_of(&list);

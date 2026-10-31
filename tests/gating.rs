@@ -28,6 +28,11 @@ async fn default_exposes_system_targets_and_tasks_tools() {
     ] {
         assert!(names.contains(&expected.to_string()), "missing {expected}");
     }
+    // The gateway removed its ticket routes; no tool may still point at them.
+    assert!(
+        !names.iter().any(|name| name.contains("ticket")),
+        "ticket tools must be gone, got: {names:?}"
+    );
 }
 
 #[tokio::test]
@@ -80,23 +85,31 @@ async fn toolset_selection_limits_exposure() {
 async fn default_tool_count_matches_wired_toolsets() {
     let server = MockServer::start().await;
     let mcp = GvmMcpServer::new(config_with_args(&server, &[])).unwrap();
-    // 40 read tools + 31 writes (5 task lifecycle + update_task + 3 each for
-    // targets/scan-configs/schedules/credentials/alerts/port-lists/notes/
-    // overrides + delete_report). A mismatch means a router was not wired
-    // into server.rs (or a tool was added without updating this inventory).
-    assert_eq!(mcp.tool_names().len(), 81, "got: {:?}", mcp.tool_names());
+    // 89 read tools + 82 writes across every non-identity gateway family
+    // (see docs/gateway-sync.md for the endpoint → tool matrix). A mismatch
+    // means a router was not wired into server.rs (or a tool was added
+    // without updating this inventory).
+    assert_eq!(mcp.tool_names().len(), 171, "got: {:?}", mcp.tool_names());
 
     let read_only = GvmMcpServer::new(config_with_args(&server, &["--read-only"])).unwrap();
     // Every mutating tool disappears in read-only mode (report drill-down,
     // export and download stay: they mutate nothing durable).
-    assert_eq!(read_only.tool_names().len(), 49);
+    assert_eq!(read_only.tool_names().len(), 89);
     assert!(
         !read_only
             .tool_names()
             .iter()
             .any(|name| name.contains("create")
                 || name.contains("update")
-                || name.contains("delete")),
+                || name.contains("delete")
+                || name.contains("clone")
+                || name.starts_with("openvas_start_")
+                || name.starts_with("openvas_stop_")
+                || name.starts_with("openvas_resume_")
+                || name.starts_with("openvas_set_")
+                || name.contains("import")
+                || name.contains("verify")
+                || name.contains("sync")),
         "read-only must hide all mutating tools"
     );
 }
@@ -120,9 +133,9 @@ async fn identity_toolset_is_opt_in() {
     ))
     .unwrap();
     let names = with_identity.tool_names();
-    // 81 default + 23 identity (5 users + 5 groups + 5 roles +
+    // 171 default + 23 identity (5 users + 5 groups + 5 roles +
     // 5 permissions + 3 user-settings).
-    assert_eq!(names.len(), 104, "got: {names:?}");
+    assert_eq!(names.len(), 194, "got: {names:?}");
     for expected in [
         "openvas_list_users",
         "openvas_create_user",
@@ -134,13 +147,13 @@ async fn identity_toolset_is_opt_in() {
         assert!(names.contains(&expected.to_string()), "missing {expected}");
     }
 
-    // Identity + read-only: default reads (49) plus the 10 identity reads.
+    // Identity + read-only: default reads (89) plus the 10 identity reads.
     let read_only = GvmMcpServer::new(config_with_args(
         &server,
         &["--toolsets", "default,identity", "--read-only"],
     ))
     .unwrap();
-    assert_eq!(read_only.tool_names().len(), 59);
+    assert_eq!(read_only.tool_names().len(), 99);
     assert!(
         read_only
             .tool_names()

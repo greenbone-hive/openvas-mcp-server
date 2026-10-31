@@ -1,9 +1,10 @@
 //! Streamable-HTTP transport: serves the MCP server at `/mcp`.
 //!
 //! Simple request/response tool calls answer as `application/json`, falling
-//! back to SSE only when a handler streams. The server holds one shared gvmd
-//! service account — a multi-tenant per-connection credential model is a
-//! deliberate non-goal until the gateway grows an auth story for it.
+//! back to SSE only when a handler streams. Each HTTP request's
+//! `Authorization` header is forwarded to the gateway by the server's
+//! `call_tool` (see `gateway::auth`); callers without one are served with the
+//! configured fallback identity unless `--require-caller-auth` is set.
 
 use rmcp::transport::streamable_http_server::StreamableHttpService;
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;

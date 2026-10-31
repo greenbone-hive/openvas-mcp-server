@@ -70,7 +70,8 @@ impl GvmMcpServer {
             .set_opt("severity", params.severity)
             .set_opt("taskId", params.task_id)
             .set_opt("resultId", params.result_id)
-            .set_opt("active", params.active);
+            .set_opt("active", params.active)
+            .set_opt("orphan", params.orphan);
         create_resource(self.gateway(), "notes", body, "creating the note").await
     }
 
@@ -90,7 +91,8 @@ impl GvmMcpServer {
             .set_opt("severity", params.severity)
             .set_opt("taskId", params.task_id)
             .set_opt("resultId", params.result_id)
-            .set_opt("active", params.active);
+            .set_opt("active", params.active)
+            .set_opt("orphan", params.orphan);
         update_resource(
             self.gateway(),
             &["notes", &params.id],
@@ -133,6 +135,8 @@ pub struct CreateNoteParams {
     pub result_id: Option<String>,
     /// Whether the note is active
     pub active: Option<bool>,
+    /// Keep the note even when its result no longer exists
+    pub orphan: Option<bool>,
 }
 
 /// Arguments for `openvas_update_note`.
@@ -147,4 +151,5 @@ pub struct UpdateNoteParams {
     pub task_id: Option<String>,
     pub result_id: Option<String>,
     pub active: Option<bool>,
+    pub orphan: Option<bool>,
 }

@@ -84,7 +84,8 @@ impl GvmMcpServer {
             .set_opt("newSeverity", params.new_severity)
             .set_opt("taskId", params.task_id)
             .set_opt("resultId", params.result_id)
-            .set_opt("active", params.active);
+            .set_opt("active", params.active)
+            .set_opt("orphan", params.orphan);
         create_resource(self.gateway(), "overrides", body, "creating the override").await
     }
 
@@ -110,7 +111,8 @@ impl GvmMcpServer {
             .set_opt("newSeverity", params.new_severity)
             .set_opt("taskId", params.task_id)
             .set_opt("resultId", params.result_id)
-            .set_opt("active", params.active);
+            .set_opt("active", params.active)
+            .set_opt("orphan", params.orphan);
         update_resource(
             self.gateway(),
             &["overrides", &params.id],
@@ -166,6 +168,8 @@ pub struct CreateOverrideParams {
     pub result_id: Option<String>,
     /// Whether the override is active
     pub active: Option<bool>,
+    /// Keep the override even when its result no longer exists
+    pub orphan: Option<bool>,
 }
 
 /// Arguments for `openvas_update_override`.
@@ -181,4 +185,5 @@ pub struct UpdateOverrideParams {
     pub task_id: Option<String>,
     pub result_id: Option<String>,
     pub active: Option<bool>,
+    pub orphan: Option<bool>,
 }

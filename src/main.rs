@@ -34,6 +34,7 @@ async fn main() -> anyhow::Result<()> {
         gateway = %config.gateway_url,
         read_only = config.read_only,
         toolsets = %config.toolsets,
+        fallback_identity = config.has_fallback_credentials(),
         "starting gvm-mcp"
     );
 
@@ -49,6 +50,18 @@ async fn main() -> anyhow::Result<()> {
         Transport::StreamableHttp => {
             let bind_addr = config.bind_addr;
             let allowed_hosts = config.allowed_hosts.clone();
+            if config.has_fallback_credentials()
+                && !config.require_caller_auth
+                && !bind_addr.ip().is_loopback()
+            {
+                tracing::warn!(
+                    %bind_addr,
+                    "fallback gvmd credentials are configured and the HTTP endpoint is not \
+                     loopback-only: every unauthenticated HTTP caller will act as that gvmd \
+                     user. Set --require-caller-auth (MCP_REQUIRE_CALLER_AUTH=true) or put an \
+                     authenticating reverse proxy in front."
+                );
+            }
             let server = GvmMcpServer::new(config)?;
             let listener = tokio::net::TcpListener::bind(bind_addr)
                 .await

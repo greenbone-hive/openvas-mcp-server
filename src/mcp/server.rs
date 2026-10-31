@@ -8,20 +8,23 @@ use rmcp::handler::server::ServerHandler;
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::tool::ToolCallContext;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResponse, Implementation, ListToolsResult,
-    PaginatedRequestParams, ServerCapabilities, ServerConfig,
+    CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation,
+    ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerConfig,
 };
 use rmcp::service::{RequestContext, RoleServer};
 
 use crate::config::Config;
-use crate::gateway::GatewayClient;
 use crate::gateway::auth::CALLER_AUTH;
+use crate::gateway::{GatewayClient, JobSessions};
 use crate::mcp::toolset::Toolset;
 
 #[derive(Clone)]
 pub struct GvmMcpServer {
     gateway: Arc<GatewayClient>,
     config: Arc<Config>,
+    /// Export jobs created by this server and their job-bound gateway
+    /// sessions (see `gateway::jobs`).
+    jobs: Arc<JobSessions>,
     tool_router: ToolRouter<Self>,
 }
 
@@ -44,18 +47,19 @@ impl GvmMcpServer {
                 Toolset::Results => tool_router += Self::results_router(),
                 Toolset::Reports => tool_router += Self::reports_router(),
                 Toolset::Assets => tool_router += Self::assets_router(),
+                Toolset::TlsCertificates => tool_router += Self::tls_certificates_router(),
                 Toolset::ReportFormats => tool_router += Self::report_formats_router(),
                 Toolset::Filters => tool_router += Self::filters_router(),
                 Toolset::Tags => tool_router += Self::tags_router(),
                 Toolset::Notes => tool_router += Self::notes_router(),
                 Toolset::Overrides => tool_router += Self::overrides_router(),
                 Toolset::Nvts => tool_router += Self::nvts_router(),
+                Toolset::SecInfo => tool_router += Self::secinfo_router(),
+                Toolset::Vulnerabilities => tool_router += Self::vulnerabilities_router(),
                 Toolset::Feeds => tool_router += Self::feeds_router(),
-                Toolset::Tickets => tool_router += Self::tickets_router(),
+                Toolset::Compliance => tool_router += Self::compliance_router(),
+                Toolset::Agents => tool_router += Self::agents_router(),
                 Toolset::Identity => tool_router += Self::identity_router(),
-                // Vulnerabilities and standalone TLS certs have no gateway
-                // endpoint yet; compliance waits on the gateway's audits API.
-                Toolset::Vulnerabilities | Toolset::TlsCertificates | Toolset::Compliance => {}
             }
         }
 
@@ -73,12 +77,17 @@ impl GvmMcpServer {
         Ok(Self {
             gateway,
             config: Arc::new(config),
+            jobs: Arc::new(JobSessions::new()),
             tool_router,
         })
     }
 
     pub(crate) fn gateway(&self) -> &GatewayClient {
         &self.gateway
+    }
+
+    pub(crate) fn jobs(&self) -> &JobSessions {
+        &self.jobs
     }
 
     pub(crate) fn config(&self) -> &Config {
@@ -106,17 +115,30 @@ impl ServerHandler for GvmMcpServer {
     /// header is read from the request's `http::request::Parts` extension,
     /// which rmcp's streamable-HTTP transport inserts; stdio has no such
     /// extension, so the gateway client falls back to configured credentials.
+    ///
+    /// With `--require-caller-auth`, an HTTP caller that sends no
+    /// `Authorization` is refused instead of being served with the fallback
+    /// identity — the fallback then only ever serves stdio.
     async fn call_tool(
         &self,
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
-        let caller_auth = context
-            .extensions
-            .get::<http::request::Parts>()
+        let http_parts = context.extensions.get::<http::request::Parts>();
+        let over_http = http_parts.is_some();
+        let caller_auth = http_parts
             .and_then(|parts| parts.headers.get(http::header::AUTHORIZATION))
             .and_then(|value| value.to_str().ok())
             .map(str::to_owned);
+
+        if over_http && caller_auth.is_none() && self.config.require_caller_auth {
+            return Ok(CallToolResult::error(vec![ContentBlock::text(
+                "Authentication required: this server is configured with \
+                 --require-caller-auth, so HTTP callers must send an Authorization \
+                 header (Basic gvmd credentials or a gateway session token).",
+            )])
+            .into());
+        }
 
         let call = self
             .tool_router
@@ -144,8 +166,9 @@ impl ServerHandler for GvmMcpServer {
             )
             .with_instructions(
                 "Tools for driving Greenbone Vulnerability Management (OpenVAS): \
-                 scan targets, tasks, reports and supporting resources. \
-                 Start with openvas_test_connection to verify the stack is reachable.",
+                 scan targets, tasks, reports, compliance audits and supporting \
+                 resources. Start with openvas_test_connection to verify the stack \
+                 is reachable.",
             )
     }
 }
