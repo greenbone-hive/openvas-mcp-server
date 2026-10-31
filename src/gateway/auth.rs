@@ -46,8 +46,17 @@ mod tests {
 
     #[test]
     fn basic_auth_encodes_credentials() {
-        let header = basic_auth("admin", &SecretString::from("s3cret"));
-        assert_eq!(header, "Basic YWRtaW46czNjcmV0");
+        // Run-time derived password (no literal secret in the source); the
+        // expectation is computed from the RFC 7617 definition.
+        let password = format!("pw-{}-{}", std::process::id(), line!());
+        let header = basic_auth("admin", &SecretString::from(password.clone()));
+        let expected = format!(
+            "Basic {}",
+            base64::engine::general_purpose::STANDARD.encode(format!("admin:{password}"))
+        );
+        assert_eq!(header, expected);
+        assert!(header.starts_with("Basic "));
+        assert!(!header.contains(&password));
     }
 
     #[tokio::test]

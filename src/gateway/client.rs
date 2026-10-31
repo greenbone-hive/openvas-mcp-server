@@ -518,6 +518,8 @@ fn join_url(base: &Url, segments: &[&str]) -> Url {
 
 #[cfg(test)]
 mod tests {
+    use base64::Engine;
+
     use super::*;
 
     #[test]
@@ -578,15 +580,21 @@ mod tests {
 
     #[test]
     fn debug_output_never_contains_the_fallback_credential() {
+        // The password is derived at run time (no literal secret in the
+        // source); the encoded header is computed the same way the client
+        // builds it so the assertion covers both plain and encoded forms.
+        let password = format!("pw-{}-{}", std::process::id(), line!());
+        let encoded = base64::engine::general_purpose::STANDARD
+            .encode(format!("admin:{password}").as_bytes());
         let client = GatewayClient::with_basic_fallback(
             Url::parse("http://gw:8080").unwrap(),
             "admin",
-            SecretString::from("s3cret"),
+            SecretString::from(password.clone()),
         )
         .unwrap();
         let rendered = format!("{client:?}");
         assert!(rendered.contains("<redacted>"), "got: {rendered}");
-        assert!(!rendered.contains("YWRtaW46czNjcmV0"), "got: {rendered}");
-        assert!(!rendered.contains("s3cret"), "got: {rendered}");
+        assert!(!rendered.contains(&encoded), "got: {rendered}");
+        assert!(!rendered.contains(&password), "got: {rendered}");
     }
 }
