@@ -31,6 +31,17 @@ forwarding (the caller's `Authorization`, scoped per call by `server.rs`'s
 output is summarized (token budget); `get` output is the gateway's JSON,
 unchanged.
 
+## Gateway contract
+
+The gateway's `spec/rest-api` (currently contract 0.5.0: 121 paths, 199
+operations) is the source of truth for the tool surface. 195 operations map
+to exactly one tool each; the remaining four (session create, inspect and
+delete, and the OpenAPI document) do not apply to a stateless pass-through
+server. `scripts/gateway_sync_check.py` resolves the spec, maps every
+operation to a tool, reports missing, stale or broken mappings, and with
+`--write-doc` renders [gateway-sync.md](gateway-sync.md). CI runs the same
+check against the gateway's `main` branch.
+
 ## Adding a tool
 
 1. Find the endpoint in the gateway's `spec/rest-api/*.yaml` (the contract).
