@@ -1,19 +1,36 @@
-![Greenbone Logo](https://www.greenbone.net/wp-content/uploads/greenbone-logo-2025.png)
+![Greenbone Logo](https://www.greenbone.net/wp-content/uploads/gb_new-logo_horizontal_rgb_small.png)
 
-# OpenVAS MCP Server
-
-[![CI](https://github.com/greenbone-hive/openvas-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/greenbone-hive/openvas-mcp-server/actions/workflows/ci.yml)
-[![Security](https://github.com/greenbone-hive/openvas-mcp-server/actions/workflows/security.yml/badge.svg)](https://github.com/greenbone-hive/openvas-mcp-server/actions/workflows/security.yml)
-[![Release](https://img.shields.io/github/v/release/greenbone-hive/openvas-mcp-server)](https://github.com/greenbone-hive/openvas-mcp-server/releases)
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+# OpenVAS MCP Server <!-- omit in toc -->
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server for
 Greenbone Vulnerability Management (GVM/OpenVAS), written in Rust. It exposes
 the complete [rust-gvm-api](https://github.com/greenbone-hive/rust-gvm-api)
-REST contract as typed MCP tools, so an AI assistant can manage targets, tasks,
-scan configurations, reports and compliance audits through a single binary.
+REST contract as typed MCP tools, forwards each caller's gvmd identity to the
+gateway, and lets an AI assistant manage targets, tasks, scan configurations,
+reports and compliance audits through a single binary.
 
-## Overview
+## Table of Contents <!-- omit in toc -->
+
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Authentication](#authentication)
+- [Toolsets](#toolsets)
+- [Development](#development)
+- [Documentation](#documentation)
+- [Maintainer](#maintainer)
+- [License](#license)
+
+## Requirements
+
+- A running [rust-gvm-api](https://github.com/greenbone-hive/rust-gvm-api)
+  REST gateway (contract 0.5.0) in front of gvmd; verified end to end against
+  gvmd 26.43.0 / GMP 22.8
+- Rust 1.90 or later, to build from source
+- Docker, for the container image and the live end-to-end tests
+
+No GVM installation is required to build or test the server: the test suite
+runs against a mock gateway, and the server itself never speaks GMP.
 
 ```text
 MCP client (Claude, IDEs, agents)
@@ -28,32 +45,9 @@ MCP client (Claude, IDEs, agents)
       gvmd
 ```
 
-`gvm-mcp` is a thin, typed front end over the gateway. Every tool validates
-its arguments, issues one gateway request and maps the response back to the
-client. All GMP knowledge stays in the gateway.
+## Installation
 
-- **Complete and contract-driven.** 194 tools cover every applicable
-  operation of the gateway's OpenAPI contract. A drift check runs in CI.
-- **Stateless and identity-preserving.** Each gateway call carries the
-  caller's own credentials; gvmd remains the single authority.
-- **Scoped by default.** 25 toolsets, opt-in user administration and a
-  read-only mode that removes every mutating tool.
-- **Token-aware.** List tools return summarized rows with pagination; `get`
-  tools return the gateway's full JSON.
-
-## Requirements
-
-| Component | Version |
-| --------- | ------- |
-| rust-gvm-api REST gateway | contract 0.5.0 |
-| gvmd / GMP (verified end to end) | 26.43.0 / 22.8 |
-| Rust toolchain (building from source) | 1.90 or newer |
-
-The gateway is the only runtime dependency.
-
-## Quick installation
-
-### Docker (streamable HTTP)
+Docker, streamable HTTP on `http://localhost:8000/mcp`:
 
 ```bash
 docker run --rm \
@@ -64,12 +58,8 @@ docker run --rm \
   ghcr.io/greenbone-hive/openvas-mcp-server:latest
 ```
 
-The MCP endpoint is `http://localhost:8000/mcp`.
-
-### Binary (stdio)
-
-Download a [release](https://github.com/greenbone-hive/openvas-mcp-server/releases)
-or run `cargo build --release`, then register the binary with your MCP client:
+Binary over stdio, from a [release](https://github.com/greenbone-hive/openvas-mcp-server/releases)
+or `cargo build --release`, registered with the MCP client:
 
 ```json
 {
@@ -86,23 +76,122 @@ or run `cargo build --release`, then register the binary with your MCP client:
 }
 ```
 
-Start with the `openvas_test_connection` tool. It verifies gateway liveness
-and readiness, the gvmd version and the forwarded identity.
+Start with the `openvas_test_connection` tool: it checks gateway liveness and
+readiness, the gvmd version and the forwarded identity. Release archives,
+checksums, the compose example and client registration for both transports
+are covered in [docs/installation.md](docs/installation.md).
+
+## Configuration
+
+Every setting is an environment variable and a CLI flag of the same meaning
+(`gvm-mcp --help`). `GVM_PASSWORD_FILE` points at a mounted secret and wins
+over `GVM_PASSWORD`.
+
+| Required | Variable                  | Default                   | Description                                                                                              |
+|----------|---------------------------|---------------------------|----------------------------------------------------------------------------------------------------------|
+| no       | `GVM_GATEWAY_URL`         | `http://127.0.0.1:8080`   | Origin of the rust-gvm-api gateway, without `/api/v1`                                                    |
+| no*      | `GVM_USERNAME`            |                           | gvmd username of the fallback identity (stdio, and HTTP callers that send no `Authorization`)            |
+| no*      | `GVM_PASSWORD`            |                           | gvmd password of the fallback identity; also read from `GVM_PASSWORD_FILE`                               |
+| no       | `MCP_TRANSPORT`           | `stdio`                   | `stdio` or `streamable-http`                                                                             |
+| no       | `MCP_BIND_ADDR`           | `127.0.0.1:8000`          | Listen address of the streamable-HTTP transport                                                          |
+| no       | `MCP_ALLOWED_HOSTS`       | `localhost,127.0.0.1,::1` | `Host` headers accepted by the HTTP transport (DNS-rebinding guard); `*` disables the check              |
+| no       | `MCP_REQUIRE_CALLER_AUTH` | `false`                   | Reject HTTP tool calls without an `Authorization` header instead of serving them with the fallback identity |
+| no       | `GVM_TOOLSETS`            | `default`                 | Toolsets to expose: `default`, `all` or a comma-separated list                                           |
+| no       | `GVM_READ_ONLY`           | `false`                   | Expose only non-mutating tools                                                                           |
+| no       | `GVM_HTTP_TIMEOUT`        | `30`                      | Gateway HTTP timeout in seconds                                                                          |
+| no       | `GVM_LOG_LEVEL`           | `info`                    | Log level when `RUST_LOG` is unset: `error`, `warn`, `info`, `debug`, `trace`                            |
+
+\* required for stdio clients; HTTP callers may instead authenticate as
+themselves.
+
+## Authentication
+
+The server holds no session and invents no authentication of its own. The
+`Authorization` value of each gateway call is resolved per request: the
+inbound MCP request's `Authorization` header when present (so every
+streamable-HTTP caller authenticates as themselves with `Basic` gvmd
+credentials or a gateway session token), otherwise a `Basic` header built from
+`GVM_USERNAME` / `GVM_PASSWORD`. Without either, the gateway answers `401`
+and the tool reports it.
+
+The one exception is asynchronous report exports: the gateway cancels an
+export job when the session that created it ends, so `openvas_export_report`
+opens a job-bound gateway session with the caller's credentials and closes it
+after the download, on cancel or when the job reaches a terminal state.
+
+For HTTP deployments, `MCP_REQUIRE_CALLER_AUTH=true` keeps the fallback
+identity for stdio only, `MCP_ALLOWED_HOSTS` guards against DNS rebinding, and
+TLS belongs on a reverse proxy in front of the server. The gateway client never
+follows redirects, rejects credentials embedded in the gateway URL, redacts
+secrets from debug output and caps downloaded artifacts at 3 MB. Details in
+[docs/authentication.md](docs/authentication.md).
+
+## Toolsets
+
+194 tools in 25 toolsets. `default` is every toolset except `identity`, which
+is always opt-in; `GVM_READ_ONLY` removes every mutating tool from the listing.
+
+```bash
+gvm-mcp --list-toolsets                     # the 25 toolsets
+gvm-mcp --toolsets targets,tasks,reports    # scoped surface
+gvm-mcp --toolsets default,identity         # include user administration
+gvm-mcp --read-only                         # reads only
+```
+
+| Selection                      | Tools |
+|--------------------------------|------:|
+| `default`                      | 171   |
+| `default`, read-only           | 89    |
+| `default,identity`             | 194   |
+| `default,identity`, read-only  | 99    |
+
+List tools return summarized rows with pagination; `get` tools return the
+gateway's full JSON. The toolset reference, the definition of a mutating tool
+and the availability notes are in [docs/toolsets.md](docs/toolsets.md); scan,
+audit, export and deletion flows are in [docs/usage.md](docs/usage.md).
+
+## Development
+
+```bash
+cargo build --release   # target/release/gvm-mcp
+cargo test              # unit and mock-gateway tests, no GVM needed
+cargo fmt --all && cargo clippy --all-targets --all-features -- -D warnings
+python3 scripts/gateway_sync_check.py --spec ../rust-gvm-api/spec/rest-api --write-doc
+```
+
+The tool surface mirrors the gateway's `spec/rest-api`: 195 of the contract's
+199 operations map to exactly one tool each, and the drift check above fails
+on any missing, stale or broken mapping. CI runs the same gate plus the drift
+check against the gateway's `main` branch. A live end-to-end suite, gated
+behind `#[ignore]`, exercises every endpoint against a real gateway and gvmd;
+see [docs/development.md](docs/development.md).
 
 ## Documentation
 
-| Document | Contents |
-| -------- | -------- |
-| [Installation](docs/installation.md) | Gateway prerequisite, Docker, release binaries, building from source, client registration, configuration reference |
-| [Authentication and security](docs/authentication.md) | Identity forwarding, export sessions, HTTP hardening, secrets |
-| [Toolsets](docs/toolsets.md) | The 25 toolsets, selection and read-only gating, availability notes |
-| [Usage](docs/usage.md) | Filters and pagination, scan and audit flows, report exports and imports, deletion semantics |
-| [Development](docs/development.md) | Module layout, adding a tool, quality gate, test map, live end-to-end tests |
-| [Gateway contract matrix](docs/gateway-sync.md) | Every gateway endpoint and the tool that serves it |
-| [Contributing](CONTRIBUTING.md) | Development loop and pull-request conventions |
-| [Security policy](SECURITY.md) | Reporting vulnerabilities |
-| [Releasing](RELEASING.md) | Release process |
+- [docs/installation.md](docs/installation.md): gateway prerequisite, Docker,
+  release binaries, building from source, client registration, configuration
+  reference
+- [docs/authentication.md](docs/authentication.md): identity forwarding,
+  export sessions, HTTP hardening, secrets
+- [docs/toolsets.md](docs/toolsets.md): the 25 toolsets, selection and
+  read-only gating, availability notes
+- [docs/usage.md](docs/usage.md): filters and pagination, scan and audit
+  flows, report exports and imports, deletion semantics
+- [docs/development.md](docs/development.md): module layout, adding a tool,
+  quality gate, test map, live end-to-end tests
+- [docs/gateway-sync.md](docs/gateway-sync.md): every gateway endpoint and the
+  tool that serves it
+- [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md),
+  [RELEASING.md](RELEASING.md)
+
+## Maintainer
+
+This project is maintained by [Greenbone AG][Greenbone]
 
 ## License
 
-AGPL-3.0-or-later. See [LICENSE](LICENSE).
+Copyright (C) 2026 [Greenbone AG][Greenbone]
+
+Licensed under the [GNU Affero General Public License v3.0 or later](LICENSE).
+
+[Greenbone]: https://www.greenbone.net/
