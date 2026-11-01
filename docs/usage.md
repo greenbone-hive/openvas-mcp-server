@@ -10,20 +10,9 @@ message (gateway down vs. gvmd unreachable vs. bad credentials).
 
 ## Toolsets and gating
 
-`gvm-mcp --list-toolsets` prints every toolset. Selection examples:
-
-```bash
-gvm-mcp                                     # default: everything except identity (171 tools)
-gvm-mcp --read-only                         # reads only (89 tools)
-gvm-mcp --toolsets targets,tasks,reports    # scoped surface
-gvm-mcp --toolsets default,identity         # opt into user administration (194 tools)
-```
-
-`--read-only` removes every mutating tool from the router — clients do not
-even see them in `tools/list`. Mutating means create/update/delete/clone,
-task and audit start/stop/resume, scan-config selection and preference
-writes, report import, credential-store verification and agent sync. The
-`system` toolset (connection test, version, timezones) is always present.
+The exposed surface is chosen at start-up with `--toolsets` and
+`--read-only`; see [toolsets.md](toolsets.md) for the 25 toolsets, the
+selection counts and what counts as a mutating tool.
 
 ## Filters and pagination
 
@@ -114,4 +103,5 @@ Delete tools move resources to gvmd's trashcan by default; pass
 gateway contract (reports, audits, policies, host/OS/generic assets, agents)
 take only an `id` — the gateway rejects `ultimate` on those routes. Deleting
 a resource that is still referenced (e.g. a target used by a task) surfaces
-the gateway's 409 with the reason.
+the gateway's 409 with the reason. Current gvmd builds refuse to delete an
+imported report; it is retained with its import task.
