@@ -42,6 +42,7 @@ under immutable release tags only (no `latest`); take `vX.Y.Z` from the
 docker run --rm \
   --add-host=host.docker.internal:host-gateway \
   -e GVM_GATEWAY_URL=http://host.docker.internal:8080 \
+  -e GVM_ALLOW_INSECURE_GATEWAY=true \
   -e GVM_USERNAME=admin \
   -e GVM_PASSWORD=secret \
   -p 127.0.0.1:8000:8000 \
@@ -88,6 +89,10 @@ over `GVM_PASSWORD`.
 | no       | `MCP_REQUIRE_CALLER_AUTH` | `false`                   | Reject HTTP tool calls without an `Authorization` header instead of serving them with the fallback identity |
 | no       | `GVM_TOOLSETS`            | `default`                 | Toolsets to expose: `default`, `all` or a comma-separated list                                           |
 | no       | `GVM_READ_ONLY`           | `false`                   | Expose only non-mutating tools                                                                           |
+| no       | `GVM_GATEWAY_AUTH_MODE`   | `session`                 | `session` reuses one gateway session per identity; `per-request` sends credentials on every call                   |
+| no       | `GVM_GATEWAY_MAX_IN_FLIGHT` | `8`                     | Gateway requests in flight per identity (the gateway allows ten concurrent sessions per user)                     |
+| no       | `GVM_ALLOW_INSECURE_GATEWAY` | `false`                | Permit a plain-http gateway URL that is not loopback (isolated networks only)                                      |
+| no       | `GVM_GATEWAY_CA_CERT`     |                           | PEM bundle of extra root certificates for the gateway's TLS certificate                                           |
 | no       | `GVM_HTTP_TIMEOUT`        | `30`                      | Gateway HTTP timeout in seconds                                                                          |
 | no       | `GVM_LOG_LEVEL`           | `info`                    | Log level when `RUST_LOG` is unset: `error`, `warn`, `info`, `debug`, `trace`                            |
 

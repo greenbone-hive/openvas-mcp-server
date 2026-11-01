@@ -69,6 +69,25 @@ impl GatewayError {
     pub fn is_unauthorized(&self) -> bool {
         self.status() == Some(401)
     }
+
+    /// Whether the gateway throttled the request (HTTP 429), for either of
+    /// its two reasons: the per-user session cap or the request budget.
+    pub fn is_rate_limited(&self) -> bool {
+        self.status() == Some(429)
+    }
+
+    /// Whether a 429 is the gateway's per-user session cap, which clears as
+    /// soon as another request of the same user finishes, as opposed to the
+    /// per-window request budget, which only clears after `retry after`.
+    pub fn is_session_limit(&self) -> bool {
+        match self {
+            Self::Api(problem) if problem.status == 429 => problem
+                .detail
+                .as_deref()
+                .is_some_and(|detail| detail.contains("session limit")),
+            _ => false,
+        }
+    }
 }
 
 /// Convert a non-success gateway response into a typed error, consuming it.
@@ -84,7 +103,11 @@ pub async fn error_from_response(response: reqwest::Response) -> GatewayError {
         Ok(body) => body,
         Err(err) => return GatewayError::Transport(err),
     };
+    error_from_body(status, is_problem, body)
+}
 
+/// Typed error for an already-read error body.
+pub fn error_from_body(status: u16, is_problem: bool, body: String) -> GatewayError {
     if is_problem && let Ok(problem) = serde_json::from_str::<ProblemDetail>(&body) {
         return GatewayError::Api(Box::new(problem));
     }
@@ -112,6 +135,27 @@ mod tests {
         assert!(text.contains("not_found"));
         assert!(text.contains("404"));
         assert!(text.contains("Target 'x' not found."));
+    }
+
+    #[test]
+    fn session_limit_is_told_apart_from_the_request_budget() {
+        let limit = |detail: &str| {
+            GatewayError::Api(Box::new(ProblemDetail {
+                type_uri: String::new(),
+                code: "too_many_requests".into(),
+                title: "Too Many Requests".into(),
+                status: 429,
+                detail: Some(detail.into()),
+                instance: None,
+            }))
+        };
+        let sessions = limit("per-user session limit exceeded");
+        assert!(sessions.is_rate_limited());
+        assert!(sessions.is_session_limit());
+        let budget = limit("rate limit exceeded; retry after 56 seconds");
+        assert!(budget.is_rate_limited());
+        assert!(!budget.is_session_limit());
+        assert!(!error_from_body(503, false, "down".into()).is_rate_limited());
     }
 
     #[test]

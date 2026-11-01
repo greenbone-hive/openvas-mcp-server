@@ -4,12 +4,21 @@
 
 mod support;
 
+use gvm_mcp::config::Config;
 use gvm_mcp::mcp::GvmMcpServer;
 use gvm_mcp::mcp::tools::common::{GetByIdParams, ListParams};
 use gvm_mcp::mcp::tools::reports::{ExportReportParams, ReportPageParams};
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{CallToolResult, ContentBlock};
-use support::{EXPECTED_BASIC, config_for, problem_response};
+use support::{EXPECTED_BASIC, config_with_args, problem_response};
+
+/// These tests pin the request-scoped `Basic` behaviour of the export flow
+/// (the job-bound session is the only session they expect to see), so they
+/// run the client in per-request mode; `tests/gateway_sessions.rs` covers
+/// the pooled default.
+fn config_for(server: &MockServer) -> Config {
+    config_with_args(server, &["--gateway-auth-mode", "per-request"])
+}
 use wiremock::matchers::{body_json, header, method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 

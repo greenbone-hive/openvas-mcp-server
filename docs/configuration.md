@@ -19,6 +19,10 @@ environment variables, and both override the built-in defaults.
 | `--toolsets` | `GVM_TOOLSETS` | `default` | `default`, `all` or a comma-separated list of toolset names |
 | `--read-only` | `GVM_READ_ONLY` | `false` | Expose only non-mutating tools |
 | `--timeout-secs` | `GVM_HTTP_TIMEOUT` | `30` | HTTP timeout towards the gateway, in seconds |
+| `--gateway-auth-mode` | `GVM_GATEWAY_AUTH_MODE` | `session` | `session` (one gateway session per identity) or `per-request` (credentials on every call) |
+| `--gateway-max-in-flight` | `GVM_GATEWAY_MAX_IN_FLIGHT` | `8` | Gateway requests in flight per identity (1-64) |
+| `--allow-insecure-gateway` | `GVM_ALLOW_INSECURE_GATEWAY` | `false` | Permit a plain-http gateway URL that is not loopback |
+| `--gateway-ca-cert` | `GVM_GATEWAY_CA_CERT` | – | PEM bundle of extra root certificates for the gateway's TLS certificate |
 | `--log-level` | `GVM_LOG_LEVEL` | `info` | Log level when `RUST_LOG` is unset |
 | `--list-toolsets` | – | – | Print the toolsets and exit |
 
@@ -32,6 +36,36 @@ themselves, and a stdio client gets a legible `401` error from every tool.
 lend it to HTTP callers. The full model, including how report exports obtain
 their own gateway session, is described in
 [Authentication and security](authentication.md).
+
+## Reaching the gateway
+
+The server usually runs on a different machine than the gateway, often next
+to the person using the assistant, so the connection crosses a network:
+
+- **Use TLS.** `GVM_GATEWAY_URL=https://gateway.example:8443` verifies the
+  gateway's certificate against the system roots; for a private CA point
+  `GVM_GATEWAY_CA_CERT` at its PEM bundle. TLS 1.2 is the minimum, and the
+  client never follows redirects.
+- **Plain `http://` is refused** unless the host is loopback
+  (`localhost`, `127.0.0.1`, `::1`) or you set
+  `GVM_ALLOW_INSECURE_GATEWAY=true`. The flag exists for isolated private
+  networks such as a Docker network where gvmd credentials cannot be observed
+  in transit; do not use it across a shared network.
+- **Sessions, not logins per call.** In the default `session` mode the
+  server logs an identity into the gateway once, keeps the resulting session
+  token in memory and reuses it until the gateway's idle timeout (5 minutes
+  by default) would expire it. One gvmd login per identity replaces one per
+  tool call, which is both faster over a network and gentler on gvmd's logs.
+  Sessions idle for 60 seconds are closed so they do not occupy the
+  gateway's per-user cap between bursts; a session the gateway no longer
+  accepts is re-created once and the call retried; if the gateway cannot
+  create sessions at all, calls fall back to per-request `Basic`
+  authentication. `per-request` mode disables the pool.
+- **Bounded parallelism.** At most `GVM_GATEWAY_MAX_IN_FLIGHT` requests per
+  identity are in flight at once (default 8). The gateway allows ten
+  concurrent sessions per gvmd user and 500 requests per minute per
+  identity; the gate keeps parallel tool calls below the first limit and
+  turns a burst into a short queue instead of errors.
 
 ## Secrets
 

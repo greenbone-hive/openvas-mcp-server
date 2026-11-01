@@ -35,7 +35,16 @@ fn describe(stage: &str, err: &GatewayError) -> String {
                 502 | 504 => "Gateway cannot reach gvmd",
                 _ => "Gateway error",
             };
-            format!("{class} while {stage}: {problem}")
+            let mut text = format!("{class} while {stage}: {problem}");
+            if problem.status == 429 {
+                text.push_str(
+                    " The gateway caps concurrent sessions per gvmd user and requests per \
+                     minute per identity; this server already queues calls per identity \
+                     (--gateway-max-in-flight), so wait for the retry-after period or \
+                     reduce parallel tool calls.",
+                );
+            }
+            text
         }
         GatewayError::UnexpectedStatus { status, body } => {
             format!("Gateway returned unexpected HTTP {status} while {stage}: {body}")
@@ -88,7 +97,9 @@ mod tests {
         assert!(describe("x", &problem(401, "unauthorized")).contains("Authentication failed"));
         assert!(describe("x", &problem(403, "forbidden")).contains("Permission denied"));
         assert!(describe("x", &problem(409, "conflict")).contains("Conflict"));
-        assert!(describe("x", &problem(429, "rate_limited")).contains("Rate limited"));
+        let limited = describe("x", &problem(429, "rate_limited"));
+        assert!(limited.contains("Rate limited"));
+        assert!(limited.contains("--gateway-max-in-flight"));
         assert!(describe("x", &problem(501, "not_implemented")).contains("Not supported"));
         assert!(describe("x", &problem(502, "bad_gateway")).contains("cannot reach gvmd"));
     }

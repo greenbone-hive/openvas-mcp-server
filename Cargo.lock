@@ -528,6 +528,7 @@ dependencies = [
  "clap",
  "http",
  "reqwest",
+ "ring",
  "rmcp",
  "schemars",
  "secrecy",

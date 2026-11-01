@@ -14,6 +14,21 @@ you which layer fails.
 - A streamable-HTTP client needs the full endpoint `http://<host>:8000/mcp`,
   not the origin alone.
 
+## The server refuses to start: "plain http to a non-loopback host"
+
+`GVM_GATEWAY_URL` uses `http://` and points at another machine (or at
+`host.docker.internal` from inside a container), so gvmd credentials would
+cross the network unencrypted. Switch the gateway to `https://` (set
+`GVM_GATEWAY_CA_CERT` for a private CA) or, on an isolated private network
+such as a Docker network, set `GVM_ALLOW_INSECURE_GATEWAY=true`.
+
+## TLS errors towards the gateway
+
+The gateway's certificate is not trusted (private CA) or does not match the
+host name in `GVM_GATEWAY_URL`. Point `GVM_GATEWAY_CA_CERT` at the CA's PEM
+bundle and use the host name the certificate was issued for. The client does
+not offer a way to skip certificate verification.
+
 ## "Gateway unreachable" or connection refused
 
 - Check `GVM_GATEWAY_URL`; it is the gateway origin without `/api/v1`.
@@ -56,6 +71,21 @@ client uses, or set `*` behind a reverse proxy that validates `Host` itself.
   keep polling at least every few minutes.
 - Artifacts above 3 MB are refused. Export with a narrower `filter` or read
   the results through the report pages instead.
+
+## Tools fail with "Rate limited"
+
+The gateway enforces two limits per gvmd user: ten concurrent sessions and
+500 requests per minute per identity. The server already queues parallel
+calls of one identity (`GVM_GATEWAY_MAX_IN_FLIGHT`, default 8, below the
+session cap) and logs each identity in once (`session` mode), so this
+normally only appears when more than ten server instances share one gvmd
+account at the same time or when an automation exceeds the per-minute
+budget. Idle sessions are released after 60 seconds, so interactive use
+rarely reaches the cap; for a fleet of always-on automations give each its
+own gvmd account or run one shared HTTP server. The error quotes the gateway's
+`retry after` seconds; wait that long, spread work over separate gvmd
+accounts, or raise the limits in the gateway's configuration
+(`session_max_per_user`, `rate_limit_subject_per_window`).
 
 ## The gateway answers 404, 409 or 502
 

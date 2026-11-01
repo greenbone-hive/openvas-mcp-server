@@ -40,12 +40,16 @@ with a GitHub token that has the `read:packages` scope before pulling:
 ```
 
 The gateway from the compose stack listens on the host's loopback interface,
-so a container reaches it through `host.docker.internal`:
+so a container reaches it through `host.docker.internal`. From the container's
+point of view that is a remote host over plain http, which the server refuses
+by default; `GVM_ALLOW_INSECURE_GATEWAY=true` acknowledges that the traffic
+stays on this machine:
 
 ```bash
 docker run --rm \
   --add-host=host.docker.internal:host-gateway \
   -e GVM_GATEWAY_URL=http://host.docker.internal:8080 \
+  -e GVM_ALLOW_INSECURE_GATEWAY=true \
   -e GVM_USERNAME=admin \
   -e GVM_PASSWORD=secret \
   -p 127.0.0.1:8000:8000 \
@@ -55,7 +59,14 @@ docker run --rm \
 `--add-host` is needed on Linux; Docker Desktop on macOS and Windows resolves
 `host.docker.internal` by itself. To run on the gateway's own compose network
 instead, attach to it (`--network <project>_default`) and use
-`GVM_GATEWAY_URL=http://gvm-gateway:8080`.
+`GVM_GATEWAY_URL=http://gvm-gateway:8080`, again with
+`GVM_ALLOW_INSECURE_GATEWAY=true`.
+
+When the gateway runs on another machine, give it TLS (its own
+`transport_security_mode = "native"` or a TLS-terminating proxy), use an
+`https://` URL and drop the insecure flag; a private CA is trusted through
+`GVM_GATEWAY_CA_CERT=/path/to/ca.pem` mounted into the container. See
+[Configuration](configuration.md) for the details.
 
 The image is distroless, runs as a non-root user and defaults to the
 streamable-HTTP transport on `0.0.0.0:8000` with the Host-header check

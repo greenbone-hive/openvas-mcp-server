@@ -28,6 +28,10 @@ services:
     environment:
       # The only hard dependency: a reachable rust-gvm-api gateway.
       GVM_GATEWAY_URL: ${GVM_GATEWAY_URL:?Set GVM_GATEWAY_URL to your rust-gvm-api gateway}
+      # Plain http is only accepted for loopback hosts; the compose network and
+      # host.docker.internal count as remote. Use https:// and drop this when the
+      # gateway runs on another machine.
+      GVM_ALLOW_INSECURE_GATEWAY: ${GVM_ALLOW_INSECURE_GATEWAY:-true}
       # Fallback gvmd identity: gvm-mcp forwards it to the gateway when an HTTP
       # caller sends no Authorization (and always for stdio). HTTP callers may
       # instead authenticate as themselves; omit these to require that.
