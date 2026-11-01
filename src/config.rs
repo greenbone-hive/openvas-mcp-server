@@ -265,33 +265,30 @@ mod tests {
 
     #[test]
     fn password_file_takes_precedence() {
-        let dir = std::env::temp_dir().join("gvm-mcp-test-config");
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("password");
+        // A private, uniquely named directory that is removed when `dir` drops.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("password");
         std::fs::write(&path, "from-file\n").unwrap();
 
         let mut cli = base_cli();
-        cli.password_file = Some(path.clone());
+        cli.password_file = Some(path);
         let config = Config::from_cli(cli).unwrap();
         use secrecy::ExposeSecret;
         assert_eq!(
             config.password.as_ref().map(|p| p.expose_secret()),
             Some("from-file")
         );
-        std::fs::remove_file(path).ok();
     }
 
     #[test]
     fn empty_password_file_is_rejected() {
-        let dir = std::env::temp_dir().join("gvm-mcp-test-config");
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("empty-password");
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("empty-password");
         std::fs::write(&path, "\n").unwrap();
 
         let mut cli = base_cli();
-        cli.password_file = Some(path.clone());
+        cli.password_file = Some(path);
         let err = Config::from_cli(cli).unwrap_err();
         assert!(err.to_string().contains("empty"));
-        std::fs::remove_file(path).ok();
     }
 }
