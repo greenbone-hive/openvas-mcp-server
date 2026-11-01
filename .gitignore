@@ -27,3 +27,7 @@ Thumbs.db
 # Python (release tooling tests)
 __pycache__/
 *.pyc
+
+# Documentation build
+docs/_build/
+docs/.venv/

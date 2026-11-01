@@ -9,7 +9,7 @@ prints the list below.
 `--toolsets` (`GVM_TOOLSETS`) accepts `default`, `all`, or a comma-separated
 list of toolset names. `default` is every toolset except `identity`, which is
 always opt-in. `--read-only` (`GVM_READ_ONLY=true`) additionally removes every
-mutating tool from the router; clients do not see them in `tools/list`.
+mutating tool from the server; clients do not see them at all.
 
 ```bash
 gvm-mcp                                     # default selection
@@ -28,6 +28,9 @@ gvm-mcp --toolsets default,identity         # include user administration
 The `system` toolset (connection test, version, timezones) is always present.
 
 ## Reference
+
+Every tool of every toolset, with its parameters, is listed in the generated
+[Tool reference](reference/tools/index.md).
 
 | Toolset | Scope |
 | ------- | ----- |
@@ -62,9 +65,9 @@ The `system` toolset (connection test, version, timezones) is always present.
 A tool is mutating when it creates, updates, deletes or clones a resource,
 starts, stops or resumes a task or audit, writes a scan-configuration
 selection or preference, imports a report, verifies a credential store or
-triggers an agent sync. Every such tool is annotated with
-`read_only_hint = false` and, where applicable, `destructive_hint = true`;
-`--read-only` filters on that annotation.
+triggers an agent sync. Every such tool is marked as mutating (and, where
+applicable, destructive) in its MCP metadata, which is what `--read-only`
+removes and what clients use to ask for confirmation.
 
 ## Tool conventions
 
@@ -74,14 +77,12 @@ triggers an agent sync. Every such tool is annotated with
   matching `openvas_get_*` tool for the full record. Filter and pagination
   arguments are described in [usage.md](usage.md).
 - Delete tools move resources to the trashcan unless `ultimate: true` is
-  passed; resources without a trashcan in the gateway contract take only an
-  `id`.
+  passed; resources without a trashcan take only an `id`.
 
 ## Availability notes
 
 - `identity` is never part of `default`; add it explicitly.
-- Tickets are not exposed. The gateway contract no longer includes ticket
-  routes.
+- Tickets are not exposed by the gateway.
 - OCI image targets, web application targets, agents and credential stores
   depend on the connected gvmd build having those features enabled. Without
   them the gateway's problem response surfaces as a legible tool error.
