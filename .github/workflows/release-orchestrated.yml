@@ -1,0 +1,129 @@
+# Orchestrated Release — dispatch with an explicit version.
+#
+# This workflow:
+# 1. Validates the version already merged through the protected branch
+# 2. Creates the release via pontos (changelog, tag, GitHub release)
+# 3. Waits for release.yml (triggered by tag push) to build and upload artifacts
+#
+# It follows the release model of greenbone-hive/rust-gvm so that the
+# org-level release orchestrator can drive this repository the same way.
+
+name: Orchestrated Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (without 'v' prefix)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: "Release v${{ inputs.version }}"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Set up Python and pontos
+        uses: greenbone/actions/setup-pontos@d6d4c9500cb4e83f8a516ec1d40b04bcc720bd22 # v3.36.23
+
+      # setup-pontos currently leaves Python 3.10 first on PATH, while the
+      # release-version validator uses the Python 3.11+ standard tomllib.
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Qualify exact protected-main commit and release version
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "Releases must be dispatched from refs/heads/main, found $GITHUB_REF" >&2
+            exit 1
+          fi
+          if [[ "$(git rev-parse HEAD)" != "$RELEASE_SHA" ]]; then
+            echo "Checkout does not match qualified workflow SHA $RELEASE_SHA" >&2
+            exit 1
+          fi
+          git fetch --no-tags origin refs/heads/main
+          if [[ "$(git rev-parse FETCH_HEAD)" != "$RELEASE_SHA" ]]; then
+            echo "Qualified SHA $RELEASE_SHA is not the current protected main head" >&2
+            exit 1
+          fi
+          python3 scripts/check_release_version.py "$RELEASE_VERSION"
+          notes="docs/releases/v${RELEASE_VERSION}.md"
+          if [[ ! -f "$notes" ]]; then
+            echo "Missing exact release notes: $notes" >&2
+            exit 1
+          fi
+          existing_tag="$(git ls-remote --tags origin "refs/tags/v${RELEASE_VERSION}")"
+          if [[ -n "$existing_tag" ]]; then
+            echo "Tag v${RELEASE_VERSION} already exists and will not be moved" >&2
+            exit 1
+          fi
+          git switch -C main "$RELEASE_SHA"
+          git branch --set-upstream-to=origin/main main
+
+      - name: Create release with pontos
+        env:
+          GITHUB_USER: ${{ vars.RELEASE_USER || github.actor }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          args=(
+            --release-version "$RELEASE_VERSION"
+            --versioning-scheme semver
+            --project-types cargo
+            --git-tag-prefix v
+            --no-next-version
+            --no-update-project
+          )
+
+          if [[ "$RELEASE_VERSION" == *"-"* ]]; then
+            args+=(--github-pre-release)
+          fi
+
+          pontos-release create "${args[@]}" --repository "$GITHUB_REPOSITORY"
+
+      - name: Publish reviewed release notes
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          gh release edit "v${RELEASE_VERSION}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --notes-file "docs/releases/v${RELEASE_VERSION}.md"
+
+      - name: Wait for exact release.yml run via the API
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          python3 scripts/wait_for_release_run.py \
+            --repository "$GITHUB_REPOSITORY" \
+            --workflow release.yml \
+            --tag "v${RELEASE_VERSION}" \
+            --sha "$RELEASE_SHA" \
+            --timeout 7200 \
+            --interval 20

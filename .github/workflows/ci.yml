@@ -98,3 +98,29 @@ jobs:
 
       - name: Verify every gateway operation maps to a tool (and vice versa)
         run: python3 scripts/gateway_sync_check.py --spec rust-gvm-api/spec/rest-api
+
+  release-tooling:
+    name: Release tooling
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned release verification dependencies
+        run: >-
+          python -m pip install --require-hashes --only-binary=:all:
+          -r .github/requirements/release.txt
+
+      - name: Test the release helpers and workflow policy
+        run: |
+          python -m unittest \
+            tests.test_release_commit \
+            tests.test_release_version \
+            tests.test_sbom_postprocess \
+            tests.test_sbom_quality \
+            tests.test_verify_release \
+            tests.test_wait_for_release_run \
+            tests.test_workflow_policy

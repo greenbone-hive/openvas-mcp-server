@@ -18,7 +18,9 @@
 
 services:
   gvm-mcp:
-    image: ghcr.io/greenbone-hive/openvas-mcp-server:latest
+    # Set GVM_MCP_TAG to a release tag (for example v0.2.1) to pull the
+    # published image; the default builds the image locally from this checkout.
+    image: ghcr.io/greenbone-hive/openvas-mcp:${GVM_MCP_TAG:-dev}
     build: .
     restart: on-failure
     ports:

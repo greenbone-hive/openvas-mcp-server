@@ -22,3 +22,8 @@ Thumbs.db
 # SBOM artifacts
 *.cdx.json
 *.cdx.xml
+!tests/fixtures/**/*.cdx.json
+
+# Python (release tooling tests)
+__pycache__/
+*.pyc
