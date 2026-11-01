@@ -32,19 +32,6 @@ reports and compliance audits through a single binary.
 No GVM installation is required to build or test the server: the test suite
 runs against a mock gateway, and the server itself never speaks GMP.
 
-```text
-MCP client (Claude, IDEs, agents)
-        │  stdio or streamable HTTP
-        ▼
-      gvm-mcp                      this repository
-        │  HTTP/JSON, forwards the caller's gvmd identity
-        ▼
-  rust-gvm-api REST gateway        /api/v1
-        │  GMP over Unix socket
-        ▼
-      gvmd
-```
-
 ## Installation
 
 Docker, streamable HTTP on `http://localhost:8000/mcp`. Images are published
