@@ -40,7 +40,8 @@ under immutable release tags only (no `latest`); take `vX.Y.Z` from the
 
 ```bash
 docker run --rm \
-  -e GVM_GATEWAY_URL=http://gateway:8080 \
+  --add-host=host.docker.internal:host-gateway \
+  -e GVM_GATEWAY_URL=http://host.docker.internal:8080 \
   -e GVM_USERNAME=admin \
   -e GVM_PASSWORD=secret \
   -p 127.0.0.1:8000:8000 \
@@ -157,15 +158,26 @@ see [docs/development.md](docs/development.md).
 
 ## Documentation
 
+The full documentation is published at
+<https://greenbone-hive.github.io/OpenVAS-MCP/latest/>; its sources live in
+[docs/](docs/):
+
 - [docs/installation.md](docs/installation.md): gateway prerequisite, Docker,
-  release binaries, building from source, client registration, configuration
-  reference
+  release binaries, building from source
+- [docs/clients/](docs/clients/index.md): registering the server in Claude
+  Desktop, Claude Code, VS Code, Cursor, Windsurf and other MCP clients
+- [docs/configuration.md](docs/configuration.md): every flag and environment
+  variable, secrets, transports, logging
 - [docs/authentication.md](docs/authentication.md): identity forwarding,
   export sessions, HTTP hardening, secrets
 - [docs/toolsets.md](docs/toolsets.md): the 25 toolsets, selection and
   read-only gating, availability notes
-- [docs/usage.md](docs/usage.md): filters and pagination, scan and audit
-  flows, report exports and imports, deletion semantics
+- [docs/usage.md](docs/usage.md): prompt-driven workflows for scans,
+  audits, scan-configuration tuning, report exports and housekeeping
+- [docs/reference/tools/](docs/reference/tools/index.md): the generated
+  reference of all 194 tools and their parameters
+- [docs/troubleshooting.md](docs/troubleshooting.md) and
+  [docs/faq.md](docs/faq.md)
 - [docs/development.md](docs/development.md): module layout, adding a tool,
   quality gate, test map, live end-to-end tests
 - [docs/gateway-sync.md](docs/gateway-sync.md): every gateway endpoint and the

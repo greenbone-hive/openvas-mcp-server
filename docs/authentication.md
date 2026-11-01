@@ -57,16 +57,14 @@ sessions and cancels their jobs.
   also pass `MCP_REQUIRE_CALLER_AUTH=true` or keep the port on a private
   network.
 - The gateway client never follows redirects, rejects credentials embedded in
-  `GVM_GATEWAY_URL`, redacts the fallback credential from all `Debug` output
-  and caps downloaded artifacts (report exports, agent support bundles) at
-  3 MB before buffering them.
+  `GVM_GATEWAY_URL`, never writes credentials to its logs and caps downloaded
+  artifacts (report exports, agent support bundles) at 3 MB.
 
 ## Secrets
 
 Prefer `GVM_PASSWORD_FILE` (a mounted secret file) over `GVM_PASSWORD` in
 production; it takes precedence when both are set. Passwords and forwarded
-tokens are held in `secrecy::SecretString` and never appear in logs, `Debug`
-output or MCP responses.
+tokens never appear in logs or in MCP responses.
 
 Vulnerabilities in this project are reported privately as described in
-[SECURITY.md](../SECURITY.md).
+[SECURITY.md](https://github.com/greenbone-hive/OpenVAS-MCP/blob/main/SECURITY.md).

@@ -1,0 +1,75 @@
+name: Docs
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: Build the server for the tool reference
+        run: cargo build --release --locked
+
+      - name: Verify the generated tool reference is current
+        run: python3 scripts/render_tool_reference.py --check
+
+      - name: Install uv
+        uses: greenbone/actions/uv@d6d4c9500cb4e83f8a516ec1d40b04bcc720bd22 # v3.36.23
+        with:
+          python-version: "3.13"
+          working-directory: docs
+
+      - name: Build docs
+        working-directory: docs
+        run: uv run sphinx-build -W --keep-going -b html . ../_site/latest
+
+      - name: Add the site root
+        run: |
+          touch _site/.nojekyll
+          cat > _site/index.html <<'HTML'
+          <!DOCTYPE html>
+          <meta charset="utf-8">
+          <meta http-equiv="refresh" content="0; url=latest/">
+          <link rel="canonical" href="latest/">
+          <title>OpenVAS-MCP Documentation</title>
+          <a href="latest/">OpenVAS-MCP Documentation</a>
+          HTML
+
+      - name: Upload pages artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

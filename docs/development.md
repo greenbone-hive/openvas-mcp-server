@@ -136,4 +136,27 @@ Releases follow the rust-gvm model: a reviewed PR bumps `version` in
 `Cargo.toml` (and `Cargo.lock`) and adds `docs/releases/v<version>.md`; the
 `Orchestrated Release` workflow is then dispatched from `main` with that exact
 version. It tags, publishes the notes and waits for `release.yml` to build the
-five binaries, the GHCR image and the SBOM. See [RELEASING.md](../RELEASING.md).
+five binaries, the GHCR image and the SBOM. See [RELEASING.md](https://github.com/greenbone-hive/OpenVAS-MCP/blob/main/RELEASING.md).
+
+## Documentation
+
+The user documentation under `docs/` is a Sphinx + MyST project with the Furo
+theme, set up like the
+[Greenbone Community documentation](https://github.com/greenbone/docs), and
+published to GitHub Pages by `.github/workflows/docs.yml` on every push to
+`main`. Build it locally with [uv](https://docs.astral.sh/uv/):
+
+```bash
+cd docs
+uv run make html          # _build/html/index.html
+uv run make livehtml      # rebuild on change, http://127.0.0.1:8000
+```
+
+The [tool reference](reference/tools/index.md) is generated from the
+server's own `tools/list` and must not be edited by hand:
+
+```bash
+cargo build --release
+python3 scripts/render_tool_reference.py            # rewrite docs/reference/tools/
+python3 scripts/render_tool_reference.py --check    # what CI runs
+```
