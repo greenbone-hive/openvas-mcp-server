@@ -47,7 +47,9 @@ MCP client (Claude, IDEs, agents)
 
 ## Installation
 
-Docker, streamable HTTP on `http://localhost:8000/mcp`:
+Docker, streamable HTTP on `http://localhost:8000/mcp`. Images are published
+under immutable release tags only (no `latest`); take `vX.Y.Z` from the
+[releases](https://github.com/greenbone-hive/OpenVAS-MCP/releases):
 
 ```bash
 docker run --rm \
@@ -55,10 +57,10 @@ docker run --rm \
   -e GVM_USERNAME=admin \
   -e GVM_PASSWORD=secret \
   -p 127.0.0.1:8000:8000 \
-  ghcr.io/greenbone-hive/openvas-mcp-server:latest
+  ghcr.io/greenbone-hive/openvas-mcp:vX.Y.Z
 ```
 
-Binary over stdio, from a [release](https://github.com/greenbone-hive/openvas-mcp-server/releases)
+Binary over stdio, from a [release](https://github.com/greenbone-hive/OpenVAS-MCP/releases)
 or `cargo build --release`, registered with the MCP client:
 
 ```json

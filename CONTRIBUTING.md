@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest in `openvas-mcp-server` — the Rust MCP server for
+Thanks for your interest in OpenVAS-MCP (`gvm-mcp`) — the Rust MCP server for
 Greenbone Vulnerability Management. This guide covers how to build, test and
 submit changes.
 

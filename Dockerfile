@@ -31,9 +31,9 @@ FROM gcr.io/distroless/cc-debian12:nonroot
 
 ARG GVM_MCP_VERSION=dev
 ARG GVM_MCP_VCS_REF=local
-LABEL org.opencontainers.image.title="openvas-mcp-server" \
+LABEL org.opencontainers.image.title="openvas-mcp" \
       org.opencontainers.image.description="MCP server for Greenbone Vulnerability Management (GVM/OpenVAS) over the rust-gvm-api REST gateway" \
-      org.opencontainers.image.source="https://github.com/greenbone-hive/openvas-mcp-server" \
+      org.opencontainers.image.source="https://github.com/greenbone-hive/OpenVAS-MCP" \
       org.opencontainers.image.licenses="AGPL-3.0-or-later" \
       org.opencontainers.image.version="${GVM_MCP_VERSION}" \
       org.opencontainers.image.revision="${GVM_MCP_VCS_REF}"

@@ -14,7 +14,7 @@ We support the latest minor release with security patches. Once a new minor or m
 
 Instead, use **GitHub Private Vulnerability Reporting**:
 
-1. Go to the [Security Advisories](https://github.com/greenbone-hive/openvas-mcp-server/security/advisories) tab
+1. Go to the [Security Advisories](https://github.com/greenbone-hive/OpenVAS-MCP/security/advisories) tab
 2. Click **"Report a vulnerability"**
 3. Fill in the details — affected component(s), reproduction steps, and impact assessment
 
@@ -42,7 +42,7 @@ Instead, use **GitHub Private Vulnerability Reporting**:
 ### What doesn't qualify
 
 - Issues in upstream dependencies without a demonstrated attack path through
-  openvas-mcp-server
+  OpenVAS-MCP
 - Vulnerabilities in the rust-gvm-api gateway or gvmd themselves (report those
   to their respective projects)
 - Rate limiting or brute-force concerns (expected to be handled by deployment

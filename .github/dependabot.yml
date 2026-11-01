@@ -34,6 +34,19 @@ updates:
     commit-message:
       prefix: "ci"
 
+  # Python dependencies used by the release verification jobs
+  - package-ecosystem: "pip"
+    directory: "/.github/requirements"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "ci"
+
   # Docker base image
   - package-ecosystem: "docker"
     directory: "/"

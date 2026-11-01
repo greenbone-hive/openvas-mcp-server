@@ -27,14 +27,22 @@ curl -fsS http://localhost:8080/health
 
 ## Option 1: Docker (streamable HTTP)
 
+Images are published to `ghcr.io/greenbone-hive/openvas-mcp` for Linux amd64
+and arm64 under the immutable release tag only (`v<version>`, never `latest`).
+Take the tag from the
+[releases page](https://github.com/greenbone-hive/OpenVAS-MCP/releases):
+
 ```bash
 docker run --rm \
   -e GVM_GATEWAY_URL=http://gateway:8080 \
   -e GVM_USERNAME=admin \
   -e GVM_PASSWORD=secret \
   -p 127.0.0.1:8000:8000 \
-  ghcr.io/greenbone-hive/openvas-mcp-server:latest
+  ghcr.io/greenbone-hive/openvas-mcp:vX.Y.Z
 ```
+
+`gh attestation verify oci://ghcr.io/greenbone-hive/openvas-mcp:vX.Y.Z --owner greenbone-hive`
+checks the image's Sigstore build provenance.
 
 The image is distroless, runs as a non-root user and defaults to the
 streamable-HTTP transport on `0.0.0.0:8000` with the Host-header check
@@ -49,25 +57,38 @@ MCP endpoint: `http://localhost:8000/mcp`.
 
 ## Option 2: Release binary (stdio or HTTP)
 
+Every release ships one archive per platform, each with a SHA-256 checksum
+and Sigstore build provenance:
+
+| Platform | Archive |
+| --- | --- |
+| Linux x86_64 (glibc) | `gvm-mcp-linux-amd64.tar.gz` |
+| Linux x86_64 (musl, static) | `gvm-mcp-linux-amd64-musl.tar.gz` |
+| Linux ARM64 | `gvm-mcp-linux-arm64.tar.gz` |
+| macOS x86_64 | `gvm-mcp-macos-amd64.tar.gz` |
+| macOS ARM64 | `gvm-mcp-macos-arm64.tar.gz` |
+
 Download the archive for your platform from the
-[releases page](https://github.com/greenbone-hive/openvas-mcp-server/releases),
-verify the checksum, unpack, and place `gvm-mcp` on your `PATH`:
+[releases page](https://github.com/greenbone-hive/OpenVAS-MCP/releases),
+verify it, unpack, and place `gvm-mcp` on your `PATH`:
 
 ```bash
-tar xzf gvm-mcp-<version>-<target>.tar.gz
-shasum -c gvm-mcp-<version>-<target>.tar.gz.sha256
-./gvm-mcp --help
+shasum -c gvm-mcp-linux-amd64.tar.gz.sha256
+gh attestation verify gvm-mcp-linux-amd64.tar.gz --owner greenbone-hive
+tar xzf gvm-mcp-linux-amd64.tar.gz
+./gvm-mcp --version
 ```
 
-Each release also ships a CycloneDX SBOM archive alongside the binaries.
+Each release also ships `openvas-mcp-sbom.tar.gz` (CycloneDX 1.5 JSON and
+XML), its checksum and an `sbomqs-results.json` quality report.
 
 ## Option 3: Build from source
 
 Requires Rust 1.90 or newer.
 
 ```bash
-git clone https://github.com/greenbone-hive/openvas-mcp-server.git
-cd openvas-mcp-server
+git clone https://github.com/greenbone-hive/OpenVAS-MCP.git
+cd OpenVAS-MCP
 cargo build --release
 ./target/release/gvm-mcp --help
 ```

@@ -162,7 +162,7 @@ impl ServerHandler for GvmMcpServer {
             .with_server_info(
                 Implementation::new("gvm-mcp", env!("CARGO_PKG_VERSION"))
                     .with_title("OpenVAS / GVM MCP Server")
-                    .with_website_url("https://github.com/greenbone-hive/openvas-mcp-server"),
+                    .with_website_url("https://github.com/greenbone-hive/OpenVAS-MCP"),
             )
             .with_instructions(
                 "Tools for driving Greenbone Vulnerability Management (OpenVAS): \

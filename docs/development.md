@@ -132,6 +132,8 @@ with curl against rust-gvm-api `main` + gvmd 26.43.0, not fixable here):
 
 ## Releasing
 
-Tag `v*` on main. The release workflow builds binaries for
-linux/macOS (x86_64 + aarch64), attaches SHA-256 sums, and pushes the
-Docker image to GHCR.
+Releases follow the rust-gvm model: a reviewed PR bumps `version` in
+`Cargo.toml` (and `Cargo.lock`) and adds `docs/releases/v<version>.md`; the
+`Orchestrated Release` workflow is then dispatched from `main` with that exact
+version. It tags, publishes the notes and waits for `release.yml` to build the
+five binaries, the GHCR image and the SBOM. See [RELEASING.md](../RELEASING.md).
