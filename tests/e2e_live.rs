@@ -1490,17 +1490,30 @@ async fn e2e_02_resource_lifecycles() {
     );
     let os_rows = json_of(&mcp.list_operating_systems(Parameters(lp())).await.unwrap());
     if let Some(os_id) = first_id(&os_rows, "operatingSystems") {
-        must(
-            &mcp.update_operating_system(Parameters(UpdateCommentParams {
+        let updated = mcp
+            .update_operating_system(Parameters(UpdateCommentParams {
                 id: os_id,
                 comment: Some("gvm-mcp e2e".into()),
             }))
             .await
-            .unwrap(),
-            "PUT",
-            "/operating-systems/{id}",
-            "openvas_update_operating_system",
-        );
+            .unwrap();
+        if is_err(&updated) && text_of(&updated).contains("HTTP 404") {
+            // gvmd answers `modify_asset` with "not found" for operating
+            // systems a scan created (`writable: false` on the full record).
+            record(
+                "PUT",
+                "/operating-systems/{id}",
+                "openvas_update_operating_system",
+                "SKIP (OS asset is scan-created and read-only in gvmd)",
+            );
+        } else {
+            must(
+                &updated,
+                "PUT",
+                "/operating-systems/{id}",
+                "openvas_update_operating_system",
+            );
+        }
     } else {
         record(
             "PUT",

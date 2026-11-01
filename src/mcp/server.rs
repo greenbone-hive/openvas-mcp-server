@@ -94,6 +94,13 @@ impl GvmMcpServer {
         &self.config
     }
 
+    /// Release gateway state held on behalf of callers: the pooled sessions
+    /// of session mode. Best effort and bounded in time; call once the
+    /// transport has stopped.
+    pub async fn shutdown(&self) {
+        self.gateway.close_pooled_sessions().await;
+    }
+
     /// Names of the tools this instance exposes, sorted. Used by tests and
     /// diagnostics; the MCP `list_tools` result is derived from the same
     /// router.

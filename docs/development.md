@@ -129,6 +129,11 @@ with curl against rust-gvm-api `main` + gvmd 26.43.0, not fixable here):
   `src/gateway/jobs.rs`.
 - `DELETE /audits/{id}` is non-ultimate only, so an audit's target can only
   be trashed afterwards.
+- A persistent gateway session whose gvmd connection died (for example after
+  a feature-disabled command made gvmd drop it) stays `active` at the gateway
+  while every further command on it answers `502 backend_unavailable`; the
+  gateway does not reconnect. `src/gateway/client.rs` drops and closes such a
+  session on the first 502 and logs in again.
 
 ## Releasing
 
